@@ -1,0 +1,6 @@
+{
+  "name": "Si-WFH Setda Demak",
+  "description": "Sistem Informasi Work From Home dan Absensi Geotagging ASN Sekretariat Daerah Kabupaten Demak",
+  "requestFramePermissions": ["camera", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
