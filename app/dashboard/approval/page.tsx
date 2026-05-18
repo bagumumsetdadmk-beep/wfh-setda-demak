@@ -47,16 +47,26 @@ export default function ApprovalPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const { data: profileData } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
+      const { data: profileData } = await supabase.from('profiles').select('role, unit_kerja').eq('id', session.user.id).single();
       const isAdmin = profileData?.role === 'ADMIN' || (session.user.email || '').toLowerCase().includes('admin');
+      const unitKerja = profileData?.unit_kerja;
+
+      let attendanceQuery = supabase.from('attendance')
+        .select('*, profiles!attendance_user_id_fkey!inner(id, nama_lengkap, nip, unit_kerja)')
+        .order('waktu_absen', { ascending: false });
+
+      let reportQuery = supabase.from('work_reports')
+        .select('*, profiles!work_reports_user_id_fkey!inner(id, nama_lengkap, nip, unit_kerja)')
+        .order('created_at', { ascending: false });
+
+      if (!isAdmin && unitKerja) {
+        attendanceQuery = attendanceQuery.eq('profiles.unit_kerja', unitKerja);
+        reportQuery = reportQuery.eq('profiles.unit_kerja', unitKerja);
+      }
 
       const [attendances, reports] = await Promise.all([
-        supabase.from('attendance')
-          .select('*, profiles!attendance_user_id_fkey(id, nama_lengkap, nip)')
-          .order('waktu_absen', { ascending: false }),
-        supabase.from('work_reports')
-          .select('*, profiles!work_reports_user_id_fkey(id, nama_lengkap, nip)')
-          .order('created_at', { ascending: false })
+        attendanceQuery,
+        reportQuery
       ]);
 
       if (attendances.error) {
@@ -69,7 +79,7 @@ export default function ApprovalPage() {
       const attendanceItems: ApprovalItem[] = (attendances.data || [])
         .filter(a => isAdmin || (a.status === 'PENDING' || a.status === null))
         .map(a => {
-          const profile = Array.isArray(a.profiles) ? a.profiles[0] : a.profiles;
+          const profile = a.profiles;
           return {
             id: a.id,
             user_id: a.user_id,
@@ -87,7 +97,7 @@ export default function ApprovalPage() {
       const reportItems: ApprovalItem[] = (reports.data || [])
         .filter(r => isAdmin || (r.status === 'PENDING' || r.status === null || r.status_approval === 'PENDING' || r.status_approval === null))
         .map(r => {
-          const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+          const profile = r.profiles;
           return {
             id: r.id,
             user_id: r.user_id,

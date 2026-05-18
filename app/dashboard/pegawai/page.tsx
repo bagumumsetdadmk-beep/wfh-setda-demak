@@ -16,7 +16,7 @@ import {
     Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { supabase, Profile } from '@/lib/supabase';
+import { supabase, Profile, BAGIAN_LIST } from '@/lib/supabase';
 
 interface PegawaiFormData {
     id?: string;
@@ -352,12 +352,16 @@ export default function PegawaiPage() {
                         </div>
                         <div>
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Unit Kerja</label>
-                            <input 
-                                type="text"
+                            <select 
                                 value={formData.unit_kerja}
                                 onChange={e => setFormData({...formData, unit_kerja: e.target.value})}
-                                className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-500"
-                            />
+                                className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-500 bg-white"
+                            >
+                                <option value="">Pilih Unit Kerja</option>
+                                {BAGIAN_LIST.map(bagian => (
+                                    <option key={bagian} value={bagian}>{bagian}</option>
+                                ))}
+                            </select>
                         </div>
                         <div>
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Role</label>

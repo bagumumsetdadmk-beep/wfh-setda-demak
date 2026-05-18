@@ -9,6 +9,18 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+export const BAGIAN_LIST = [
+  'Bagian Umum',
+  'Bagian Organisasi',
+  'Bagian Prokompim',
+  'Bagian Adm. Pembangunan',
+  'Bagian Perekonomian dan SDA',
+  'Bagian Pengadaan Barang/Jasa',
+  'Bagian Hukum',
+  'Bagian Kesra',
+  'Bagian Pemerintahan'
+];
+
 export type Role = 'ADMIN' | 'ATASAN' | 'PEGAWAI';
 
 export interface Profile {

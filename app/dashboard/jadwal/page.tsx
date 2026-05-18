@@ -80,10 +80,16 @@ export default function JadwalPage() {
     const paddedDate = String(selectedDate).padStart(2, '0');
     const dateStr = `${year}-${paddedMonth}-${paddedDate}`;
 
-    const { data: schedulesData, error } = await supabase
+    let scheduleQuery = supabase
         .from('wfh_schedules')
-        .select('*, profiles!wfh_schedules_user_id_fkey(nama_lengkap, nip, jabatan, unit_kerja)')
+        .select('*, profiles!inner(nama_lengkap, nip, jabatan, unit_kerja)')
         .eq('tanggal', dateStr);
+
+    if (userProfile && userProfile.role === 'ATASAN' && userProfile.unit_kerja) {
+        scheduleQuery = scheduleQuery.eq('profiles.unit_kerja', userProfile.unit_kerja);
+    }
+        
+    const { data: schedulesData, error } = await scheduleQuery;
         
     if (error) {
         console.error('Error loadData schedules:', error);

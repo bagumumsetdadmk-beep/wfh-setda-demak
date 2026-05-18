@@ -97,12 +97,29 @@ export default function DashboardPage() {
         dataStore.activities = activityRes.data || [];
         
       } else {
+        const isAdmin = profile.role === 'ADMIN' || (session.user.email || '').toLowerCase().includes('admin');
+        const unitKerja = profile.unit_kerja;
+
+        let wfhQuery = supabase.from('wfh_schedules').select('*, profiles!inner(unit_kerja)', { count: 'exact', head: true }).eq('tanggal', today).neq('status', 'CANCELLED');
+        let absenQuery = supabase.from('attendance').select('*, profiles!inner(unit_kerja)', { count: 'exact', head: true }).or(`type.eq.MASUK,tipe.eq.MASUK`).gte('waktu_absen', startOfDay).lte('waktu_absen', endOfDay);
+        let reportRencanaQuery = supabase.from('work_reports').select('*, profiles!work_reports_user_id_fkey!inner(unit_kerja)', { count: 'exact', head: true }).eq('tanggal', today).eq('tipe', 'RENCANA');
+        let reportHasilQuery = supabase.from('work_reports').select('*, profiles!work_reports_user_id_fkey!inner(unit_kerja)', { count: 'exact', head: true }).eq('tanggal', today).eq('tipe', 'HASIL');
+        let activityQuery = supabase.from('attendance').select('*, profiles!inner(nama_lengkap, unit_kerja)').order('waktu_absen', { ascending: false }).limit(5);
+
+        if (!isAdmin && unitKerja) {
+            wfhQuery = wfhQuery.eq('profiles.unit_kerja', unitKerja);
+            absenQuery = absenQuery.eq('profiles.unit_kerja', unitKerja);
+            reportRencanaQuery = reportRencanaQuery.eq('profiles.unit_kerja', unitKerja);
+            reportHasilQuery = reportHasilQuery.eq('profiles.unit_kerja', unitKerja);
+            activityQuery = activityQuery.eq('profiles.unit_kerja', unitKerja);
+        }
+
         const [wfhRes, absenRes, reportRencanaRes, reportHasilRes, activityRes] = await Promise.all([
-          supabase.from('wfh_schedules').select('*', { count: 'exact', head: true }).eq('tanggal', today).neq('status', 'CANCELLED'),
-          supabase.from('attendance').select('*', { count: 'exact', head: true }).or(`type.eq.MASUK,tipe.eq.MASUK`).gte('waktu_absen', startOfDay).lte('waktu_absen', endOfDay),
-          supabase.from('work_reports').select('*', { count: 'exact', head: true }).eq('tanggal', today).eq('tipe', 'RENCANA'),
-          supabase.from('work_reports').select('*', { count: 'exact', head: true }).eq('tanggal', today).eq('tipe', 'HASIL'),
-          supabase.from('attendance').select('*, profiles!attendance_user_id_fkey(nama_lengkap)').order('waktu_absen', { ascending: false }).limit(5)
+          wfhQuery,
+          absenQuery,
+          reportRencanaQuery,
+          reportHasilQuery,
+          activityQuery
         ]);
 
         dataStore.wfhCount = wfhRes.count || 0;

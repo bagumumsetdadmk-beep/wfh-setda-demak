@@ -90,8 +90,7 @@ export default function LaporanKerjaPage() {
           .update({
             konten: content,
             status: 'PENDING',
-            status_approval: 'PENDING',
-            updated_at: new Date().toISOString()
+            status_approval: 'PENDING'
           })
           .eq('id', editingId);
         
