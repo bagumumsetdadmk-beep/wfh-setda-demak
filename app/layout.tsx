@@ -13,7 +13,7 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: 'Si-WFH Setda Demak',
+  title: 'E-WFH Setda Demak',
   description: 'Sistem Informasi Work From Home ASN Sekretariat Daerah Demak',
 };
 

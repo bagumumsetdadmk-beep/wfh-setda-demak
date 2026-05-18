@@ -88,7 +88,7 @@ export default function LoginPage() {
               }}
             />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight mb-1">Si-WFH PORTAL</h1>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight mb-1">E-WFH SETDA DEMAK</h1>
           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em]">Pemerintah Kabupaten Demak</p>
         </div>
 
@@ -149,8 +149,8 @@ export default function LoginPage() {
 
           <div className="mt-8 pt-6 border-t border-slate-50 text-center">
             <p className="text-slate-400 text-[10px] font-medium leading-relaxed">
-              &copy; 2024 Bagian Umum Setda Demak.<br/>
-              Khusus Internal ASN Pemerintah Kab. Demak.
+              &copy; 2026 Setda Kabupaten Demak.<br/>
+              Khusus Internal ASN Setda Kabupaten Demak.
             </p>
           </div>
         </div>

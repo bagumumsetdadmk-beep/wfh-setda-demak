@@ -151,7 +151,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               className="flex flex-col"
             >
               <span className="font-display font-bold text-slate-800 leading-none">SETDA DEMAK</span>
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">E-WFH Portal</span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">E-WFH SETDA DEMAK</span>
             </motion.div>
           )}
         </div>
@@ -239,7 +239,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   </div>
                   <div className="flex flex-col">
                     <span className="font-display font-bold text-slate-800 leading-none">SETDA DEMAK</span>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">E-WFH Portal</span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">E-WFH SETDA DEMAK</span>
                   </div>
                 </div>
                 
