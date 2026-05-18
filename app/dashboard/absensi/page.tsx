@@ -14,6 +14,9 @@ export default function AbsensiPage() {
   const [isCameraActive, setCameraActive] = useState(false);
   const [type, setType] = useState<'MASUK' | 'PULANG'>('MASUK');
   const [status, setStatus] = useState<'IDLE' | 'CAPTURING' | 'SUBMITTED'>('IDLE');
+  const [todaySchedule, setTodaySchedule] = useState<any>(null);
+  const [isCheckingSchedule, setIsCheckingSchedule] = useState(true);
+  const [notification, setNotification] = useState<{ type: 'ERROR' | 'SUCCESS' | 'WARNING'; message: string; submessage?: string } | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -47,17 +50,12 @@ export default function AbsensiPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const today = new Date().toLocaleDateString('en-CA');
-      const startOfDay = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
-      const endOfDay = new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
-
       const { data, error } = await supabase
         .from('attendance')
         .select('*')
         .eq('user_id', session.user.id)
-        .gte('waktu_absen', startOfDay)
-        .lte('waktu_absen', endOfDay)
-        .order('waktu_absen', { ascending: false });
+        .order('waktu_absen', { ascending: false })
+        .limit(100);
 
       if (error) throw error;
       setAttendanceHistory(data || []);
@@ -66,11 +64,36 @@ export default function AbsensiPage() {
     }
   };
 
+  const fetchTodaySchedule = async () => {
+    setIsCheckingSchedule(true);
+    try {
+      const today = new Date().toLocaleDateString('en-CA');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      
+      const { data, error } = await supabase
+        .from('wfh_schedules')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .eq('tanggal', today)
+        .eq('status', 'CONFIRMED')
+        .maybeSingle();
+        
+      if (data) setTodaySchedule(data);
+    } catch (err) {
+      console.error('Error fetching schedule:', err);
+    } finally {
+      setIsCheckingSchedule(false);
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
     if (mounted) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchAttendanceHistory();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchTodaySchedule();
     }
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -168,20 +191,82 @@ export default function AbsensiPage() {
   const handleSubmit = async () => {
     if (!photo || !location) return;
     
-    // Time Validation
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-
-    if (type === 'MASUK' && (timeString < '06:00' || timeString > '07:30')) {
-        alert('Absensi MASUK hanya dapat dilakukan antara jam 06:00 dan 07:30 WIB.');
+    // Schedule Validation
+    if (!todaySchedule && !isCheckingSchedule) {
+        setNotification({
+            type: 'WARNING',
+            message: 'Jadwal Tidak Ditemukan',
+            submessage: 'Anda tidak memiliki jadwal WFH yang disetujui untuk hari ini. Silakan hubungi atasan atau buat jadwal terlebih dahulu.'
+        });
         return;
     }
 
-    if (type === 'PULANG' && (timeString < '15:30' || timeString > '17:00')) {
-        alert('Absensi PULANG hanya dapat dilakukan antara jam 15:30 dan 17:00 WIB.');
-        return;
+    if (todaySchedule) {
+        const now = new Date();
+        const currentTime = now.getHours() * 60 + now.getMinutes();
+        
+        // Safety check for properties
+        if (!todaySchedule.shift_mulai || !todaySchedule.shift_selesai) {
+            setNotification({
+                type: 'ERROR',
+                message: 'Data Jadwal Tidak Valid',
+                submessage: 'Data jam masuk atau pulang pada jadwal Anda tidak terbaca dengan benar. Hubungi admin.'
+            });
+            return;
+        }
+
+        const [hMasuk, mMasuk] = String(todaySchedule.shift_mulai).split(':').map(Number);
+        const [hPulang, mPulang] = String(todaySchedule.shift_selesai).split(':').map(Number);
+        
+        if (isNaN(hMasuk) || isNaN(mMasuk) || isNaN(hPulang) || isNaN(mPulang)) {
+            setNotification({
+                type: 'ERROR',
+                message: 'Format Jam Salah',
+                submessage: 'Format jam pada jadwal Anda tidak valid (harus HH:mm).'
+            });
+            return;
+        }
+
+        let timeMasuk = hMasuk * 60 + mMasuk;
+        let timePulang = hPulang * 60 + mPulang;
+
+        if (timePulang < timeMasuk) {
+            timePulang += 1440; // Handle shift lewat tengah malam
+        }
+
+        let testTime = currentTime;
+        // Jika shift lewat tengah malam dan waktu sekarang adalah pagi hari, tambahkan 24 jam
+        if (timePulang > 1440 && currentTime < (timePulang - 1440 + 180)) {
+            testTime += 1440;
+        }
+
+        if (type === 'MASUK') {
+            const startWindow = timeMasuk - 180; // 3 jam sebelum shift mulai
+            const endWindow = timePulang;        // Limit absensi masuk sampai waktu shift selesai
+            
+            if (testTime < startWindow || testTime > endWindow) {
+                setNotification({
+                    type: 'WARNING',
+                    message: 'Diluar Jendela Absensi',
+                    submessage: `Absensi MASUK gagal: Anda hanya dapat absen masuk mulai 3 jam sebelum shift masuk (${todaySchedule.shift_mulai}) hingga jam shift pulang (${todaySchedule.shift_selesai}).`
+                });
+                return;
+            }
+        }
+
+        if (type === 'PULANG') {
+            const startWindow = Math.max(timeMasuk, timePulang - 180); // Jangan lebih awal dari jam masuk
+            const endWindow = timePulang + 180;   // 3 jam setelah shift selesai
+            
+            if (testTime < startWindow || testTime > endWindow) {
+                setNotification({
+                    type: 'WARNING',
+                    message: 'Diluar Jendela Absensi',
+                    submessage: `Absensi PULANG gagal: Anda hanya dapat absen pulang hingga maksimal 3 jam setelah jam shift pulang (${todaySchedule.shift_selesai}).`
+                });
+                return;
+            }
+        }
     }
 
     try {
@@ -377,8 +462,8 @@ export default function AbsensiPage() {
         {/* Attendance Results Section */}
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h3 className="text-xl font-display font-bold text-slate-800 italic uppercase">Hasil Absensi Hari Ini</h3>
-            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-full">{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long' })}</span>
+            <h3 className="text-xl font-display font-bold text-slate-800 italic uppercase">Riwayat Absensi</h3>
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-full">100 Record Terakhir</span>
           </div>
           
           {attendanceHistory.length > 0 ? (
@@ -415,7 +500,9 @@ export default function AbsensiPage() {
                       </span>
                     </div>
                     <div className="absolute bottom-0 left-0 w-full p-2 bg-gradient-to-t from-black/60 to-transparent">
-                      <p className="text-[10px] text-white font-bold tracking-widest">{new Date(item.waktu_absen).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB</p>
+                      <p className="text-[10px] text-white font-bold tracking-widest">
+                        {new Date(item.waktu_absen).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {new Date(item.waktu_absen).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
+                      </p>
                     </div>
                   </div>
                   
@@ -435,7 +522,7 @@ export default function AbsensiPage() {
             </div>
           ) : (
             <div className="dashboard-card py-12 text-center border-dashed">
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest italic tracking-tight">Belum ada data absensi hari ini</p>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest italic tracking-tight">Belum ada data absensi</p>
             </div>
           )}
         </div>
@@ -471,6 +558,42 @@ export default function AbsensiPage() {
                 {isDeleting ? 'Menghapus...' : 'Ya, Hapus'}
               </button>
             </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Notification Modal */}
+      {notification && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col items-center text-center"
+          >
+            <div className={cn(
+              "w-20 h-20 rounded-2xl flex items-center justify-center mb-6",
+              notification.type === 'SUCCESS' ? "bg-emerald-50 text-emerald-600" :
+              notification.type === 'WARNING' ? "bg-amber-50 text-amber-600" : "bg-red-50 text-red-600"
+            )}>
+              {notification.type === 'SUCCESS' ? <CheckCircle2 size={40} /> :
+               notification.type === 'WARNING' ? <AlertTriangle size={40} /> : <AlertTriangle size={40} />}
+            </div>
+            <h3 className="text-xl font-display font-black text-slate-800 mb-2 italic tracking-tight uppercase">
+              {notification.message}
+            </h3>
+            <p className="text-slate-500 text-sm font-medium mb-8 leading-relaxed">
+              {notification.submessage}
+            </p>
+            <button 
+              onClick={() => setNotification(null)}
+              className={cn(
+                "w-full py-4 rounded-2xl text-white font-bold text-sm uppercase tracking-widest transition-all active:scale-95",
+                notification.type === 'SUCCESS' ? "bg-emerald-600 shadow-emerald-600/20" :
+                notification.type === 'WARNING' ? "bg-amber-600 shadow-amber-600/20" : "bg-red-600 shadow-red-600/20"
+              )}
+            >
+              Mengerti
+            </button>
           </motion.div>
         </div>
       )}

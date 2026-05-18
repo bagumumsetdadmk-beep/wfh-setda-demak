@@ -107,7 +107,7 @@ export default function DashboardPage() {
         let activityQuery = supabase.from('attendance').select('*, profiles!inner(nama_lengkap, unit_kerja)').order('waktu_absen', { ascending: false }).limit(5);
 
         if (!isAdmin && unitKerja) {
-            wfhQuery = wfhQuery.eq('profiles.unit_kerja', unitKerja);
+            // wfhQuery remains global as per user request
             absenQuery = absenQuery.eq('profiles.unit_kerja', unitKerja);
             reportRencanaQuery = reportRencanaQuery.eq('profiles.unit_kerja', unitKerja);
             reportHasilQuery = reportHasilQuery.eq('profiles.unit_kerja', unitKerja);
@@ -226,7 +226,7 @@ export default function DashboardPage() {
                   </h2>
                   <p className="text-[10px] text-slate-500 font-medium flex items-center gap-1 mt-2">
                     {dashboardData.isWfh ? <CheckCircle2 size={12} className="text-emerald-500" /> : <AlertCircle size={12} className="text-amber-500" />} 
-                    {dashboardData.isWfh ? `Status: ${dashboardData.wfhData?.status}` : 'Anda tidak dijadwalkan WFH hari ini'}
+                    {dashboardData.isWfh ? `Terjadwal sesuai plot` : 'Anda tidak dijadwalkan WFH hari ini'}
                   </p>
                 </div>
                 <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 mt-4">

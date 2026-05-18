@@ -55,7 +55,7 @@ export default function JadwalPage() {
       user_id: '',
       shift_mulai: '07:30',
       shift_selesai: '16:00',
-      status: 'PENDING'
+      status: 'CONFIRMED'
   });
 
   const year = currentDate.getFullYear();
@@ -84,10 +84,6 @@ export default function JadwalPage() {
         .from('wfh_schedules')
         .select('*, profiles!inner(nama_lengkap, nip, jabatan, unit_kerja)')
         .eq('tanggal', dateStr);
-
-    if (userProfile && userProfile.role === 'ATASAN' && userProfile.unit_kerja) {
-        scheduleQuery = scheduleQuery.eq('profiles.unit_kerja', userProfile.unit_kerja);
-    }
         
     const { data: schedulesData, error } = await scheduleQuery;
         
@@ -170,30 +166,13 @@ export default function JadwalPage() {
               user_id: profiles[0]?.id || '',
               shift_mulai: '07:30',
               shift_selesai: '16:00',
-              status: 'PENDING'
+              status: 'CONFIRMED'
           });
       }
       setShowModal(true);
   };
 
   const canEdit = userProfile?.role === 'ADMIN';
-  const canApprove = userProfile?.role === 'ATASAN';
-
-  const handleApprove = async (id: string, user_id: string, status: 'CONFIRMED' | 'CANCELLED') => {
-      const { error } = await supabase.from('wfh_schedules').update({ status }).eq('id', id);
-      if (error) {
-          console.error('Update error:', error);
-          alert(`Gagal update status: ${error.message}`);
-      } else {
-          await supabase.from('notifications').insert({
-              user_id: user_id,
-              judul: 'Status Jadwal WFH',
-              pesan: status === 'CONFIRMED' ? 'Jadwal WFH telah disetujui atasan.' : 'Jadwal WFH ditolak atasan.',
-              is_read: false
-          });
-          loadData();
-      }
-  };
 
   return (
     <DashboardLayout>
@@ -274,9 +253,8 @@ export default function JadwalPage() {
                           <thead className="bg-slate-50/50">
                               <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                                   <th className="px-6 py-4">Pegawai</th>
-                                  <th className="px-6 py-4">Status</th>
                                   <th className="px-6 py-4">Jam Shift</th>
-                                  {(canEdit || canApprove) && <th className="px-6 py-4 text-right">Aksi</th>}
+                                  {canEdit && <th className="px-6 py-4 text-right">Aksi</th>}
                               </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-50">
@@ -298,49 +276,21 @@ export default function JadwalPage() {
                                           </div>
                                       </td>
                                       <td className="px-6 py-4">
-                                          <span className={cn(
-                                              "text-[9px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider",
-                                              row.status === 'CONFIRMED' ? "bg-emerald-50 text-emerald-600 border border-emerald-100" 
-                                              : row.status === 'CANCELLED' ? "bg-rose-50 text-rose-600 border border-rose-100"
-                                              : "bg-amber-50 text-amber-600 border border-amber-100"
-                                          )}>
-                                              {row.status}
-                                          </span>
-                                      </td>
-                                      <td className="px-6 py-4">
                                           <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
                                               <Clock size={12} className="text-slate-400" />
                                               {row.shift_mulai.slice(0, 5)} - {row.shift_selesai.slice(0, 5)}
                                           </div>
                                       </td>
-                                      {(canEdit || canApprove) && (
+                                      {canEdit && (
                                           <td className="px-6 py-4 text-right">
-                                              {canApprove && row.status === 'PENDING' && (
-                                                  <div className="flex justify-end gap-2">
-                                                      <button 
-                                                          onClick={() => handleApprove(row.id, row.user_id, 'CONFIRMED')}
-                                                          className="px-3 py-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded text-[10px] font-bold uppercase tracking-wider transition-colors"
-                                                      >
-                                                          Setujui
-                                                      </button>
-                                                      <button 
-                                                          onClick={() => handleApprove(row.id, row.user_id, 'CANCELLED')}
-                                                          className="px-3 py-1 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded text-[10px] font-bold uppercase tracking-wider transition-colors"
-                                                      >
-                                                          Tolak
-                                                      </button>
-                                                  </div>
-                                              )}
-                                              {canEdit && (
-                                                  <div className="flex justify-end gap-2">
-                                                      <button onClick={() => openForm(row)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors">
-                                                          <Settings size={14} />
-                                                      </button>
-                                                      <button onClick={() => setDeleteConfirmId(row.id)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-rose-600 transition-colors">
-                                                          <Trash2 size={14} />
-                                                      </button>
-                                                  </div>
-                                              )}
+                                              <div className="flex justify-end gap-2 mt-2">
+                                                  <button onClick={() => openForm(row)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors">
+                                                      <Settings size={14} />
+                                                  </button>
+                                                  <button onClick={() => setDeleteConfirmId(row.id)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-rose-600 transition-colors">
+                                                      <Trash2 size={14} />
+                                                  </button>
+                                              </div>
                                           </td>
                                       )}
                                   </tr>
@@ -429,19 +379,6 @@ export default function JadwalPage() {
                                       className="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-700"
                                   />
                               </div>
-                          </div>
-
-                          <div>
-                              <label className="block text-xs font-bold text-slate-700 tracking-tight mb-1.5">Status</label>
-                              <select 
-                                  value={formData.status}
-                                  onChange={(e) => setFormData({...formData, status: e.target.value})}
-                                  className="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-700"
-                              >
-                                  <option value="PENDING">PENDING</option>
-                                  <option value="CONFIRMED">CONFIRMED</option>
-                                  <option value="CANCELLED">CANCELLED</option>
-                              </select>
                           </div>
 
                           <div className="pt-4 flex gap-3">

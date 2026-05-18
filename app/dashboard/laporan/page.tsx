@@ -24,6 +24,12 @@ export default function LaporanKerjaPage() {
   const [reports, setReports] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [reportToDelete, setReportToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [todayAttendance, setTodayAttendance] = useState<any>(null);
+  const [todaySchedule, setTodaySchedule] = useState<any>(null);
+  const [notification, setNotification] = useState<{ type: 'ERROR' | 'SUCCESS' | 'WARNING'; message: string; submessage?: string } | null>(null);
 
   const fetchReports = async () => {
     setIsLoading(true);
@@ -46,11 +52,50 @@ export default function LaporanKerjaPage() {
     }
   };
 
+  const fetchContext = async () => {
+    try {
+      const today = new Date().toLocaleDateString('en-CA');
+      const startOfDay = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+      const endOfDay = new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      // Fetch MASUK attendance today
+      const { data: attendances } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .or('type.eq.MASUK,tipe.eq.MASUK')
+        .gte('waktu_absen', startOfDay)
+        .lte('waktu_absen', endOfDay)
+        .order('waktu_absen', { ascending: true })
+        .limit(1);
+      
+      if (attendances?.[0]) setTodayAttendance(attendances[0]);
+
+      // Fetch Today's WFH Schedule
+      const { data: schedule } = await supabase
+        .from('wfh_schedules')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .eq('tanggal', today)
+        .eq('status', 'CONFIRMED')
+        .maybeSingle();
+      
+      if (schedule) setTodaySchedule(schedule);
+    } catch (err) {
+      console.error('Error fetching context:', err);
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
     if (mounted) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchReports();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchContext();
     }
     return () => { mounted = false; };
   }, []);
@@ -65,14 +110,62 @@ export default function LaporanKerjaPage() {
     const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 
     if (!editingId) {
+        if (!todaySchedule || !todaySchedule.shift_mulai || !todaySchedule.shift_selesai) {
+          setNotification({
+              type: 'WARNING',
+              message: 'Jadwal Tidak Ditemukan',
+              submessage: 'Sistem tidak menemukan jadwal WFH Anda hari ini. Pastikan jadwal sudah disetujui dan data shift valid.'
+          });
+          return;
+        }
+
+        const [hMasuk, mMasuk] = todaySchedule.shift_mulai.split(':').map(Number);
+        const [hPulang, mPulang] = todaySchedule.shift_selesai.split(':').map(Number);
+        
+        let timeMasuk = hMasuk * 60 + mMasuk;
+        let timePulang = hPulang * 60 + mPulang;
+        
+        if (timePulang < timeMasuk) {
+          timePulang += 1440; // Shift lewat tengah malam
+        }
+        
+        const currentTime = now.getHours() * 60 + now.getMinutes();
+        let testTime = currentTime;
+        
+        if (timePulang > 1440 && currentTime < (timePulang - 1440 + 180)) {
+          testTime += 1440;
+        }
+
         if (activeTab === 'RENCANA') {
-          if (timeString < '07:00' || timeString > '08:00') {
-            alert('Pengiriman Rencana Kerja hanya diizinkan antara jam 07:00 dan 08:00.');
+          const limitRencana = timeMasuk + 60; // 1 jam setelah shift masuk
+          
+          if (testTime > limitRencana) {
+            setNotification({
+                type: 'WARNING',
+                message: 'Batas Waktu Terlewati',
+                submessage: `Pengiriman Rencana Kerja maksimal 1 jam setelah jam shift masuk (${todaySchedule.shift_mulai}). Anda sudah melewati batas waktu.`
+            });
             return;
           }
         } else if (activeTab === 'HASIL') {
-          if (timeString < '15:00' || timeString > '17:00') {
-            alert('Pengiriman Laporan Hasil Kerja hanya diizinkan antara jam 15:00 dan 17:00.');
+          const limitHasilMulai = Math.max(timeMasuk, timePulang - 60); // 1 jam sebelum shift pulang
+          const limitHasilAkhir = timePulang; // Sesuai permintaan, maksimal jam shift pulang
+          
+          if (testTime < limitHasilMulai) {
+            setNotification({
+                type: 'WARNING',
+                message: 'Belum Waktunya',
+                submessage: `Laporan Hasil Kerja hanya dapat dikirim mulai 1 jam sebelum jam pulang (${todaySchedule.shift_selesai}).`
+            });
+            return;
+          }
+          
+          if (testTime > limitHasilAkhir) {
+            setNotification({
+                type: 'WARNING',
+                message: 'Batas Waktu Terlewati',
+                submessage: `Pengiriman Laporan Hasil Kerja maksimal pada jam pulang (${todaySchedule.shift_selesai}). Anda sudah melewati batas waktu pengiriman.`
+            });
             return;
           }
         }
@@ -113,19 +206,40 @@ export default function LaporanKerjaPage() {
       fetchReports();
       setTimeout(() => setIsSubmitted(false), 3000);
     } catch (err: any) {
-      alert('Gagal mengirim laporan: ' + err.message);
+      setNotification({
+          type: 'ERROR',
+          message: 'Laporan Gagal Dikirim',
+          submessage: 'Gagal mengirim laporan: ' + err.message
+      });
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Hapus laporan ini?')) return;
+  const handleDelete = async () => {
+    if (!reportToDelete) return;
+    
+    setIsDeleting(true);
     try {
-      const { error } = await supabase.from('work_reports').delete().eq('id', id);
+      const { error } = await supabase.from('work_reports').delete().eq('id', reportToDelete);
       if (error) throw error;
+      
       fetchReports();
+      setIsDeleteModalOpen(false);
+      setReportToDelete(null);
     } catch (err: any) {
-      alert('Gagal menghapus: ' + err.message);
+      setNotification({
+          type: 'ERROR',
+          message: 'Gagal Menghapus',
+          submessage: 'Gagal menghapus laporan: ' + err.message
+      });
+      setIsDeleteModalOpen(false);
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const confirmDelete = (id: string) => {
+    setReportToDelete(id);
+    setIsDeleteModalOpen(true);
   };
 
   const handleEdit = (report: any) => {
@@ -272,8 +386,8 @@ export default function LaporanKerjaPage() {
                                     </span>
                                     {((report.status_approval || report.status) === 'PENDING' || (report.status_approval || report.status) === 'REVISION' || !report.status) && (
                                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => handleEdit(report)} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-lg"><Edit3 size={12} /></button>
-                                            <button onClick={() => handleDelete(report.id)} className="p-1.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg"><Trash2 size={12} /></button>
+                                            <button onClick={() => handleEdit(report)} title="Edit Laporan" className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-lg"><Edit3 size={12} /></button>
+                                            <button onClick={() => confirmDelete(report.id)} title="Hapus Laporan" className="p-1.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg"><Trash2 size={12} /></button>
                                         </div>
                                     )}
                                 </div>
@@ -321,6 +435,76 @@ export default function LaporanKerjaPage() {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-slate-100"
+          >
+            <div className="w-16 h-16 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mb-6 mx-auto">
+              <Trash2 size={32} />
+            </div>
+            <h3 className="text-xl font-display font-black text-slate-800 text-center mb-2 italic">KONFIRMASI HAPUS</h3>
+            <p className="text-slate-500 text-center text-sm font-medium mb-8">
+              Apakah Anda yakin ingin menghapus laporan ini? Tindakan ini tidak dapat dibatalkan.
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="flex-1 px-6 py-4 rounded-2xl bg-slate-100 text-slate-600 font-bold text-sm uppercase tracking-widest hover:bg-slate-200 transition-all"
+              >
+                Batal
+              </button>
+              <button 
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="flex-1 px-6 py-4 rounded-2xl bg-red-600 text-white font-bold text-sm uppercase tracking-widest shadow-lg shadow-red-600/20 active:scale-95 transition-all disabled:opacity-50"
+              >
+                {isDeleting ? 'Menghapus...' : 'Ya, Hapus'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Notification Modal */}
+      {notification && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col items-center text-center"
+          >
+            <div className={cn(
+              "w-20 h-20 rounded-2xl flex items-center justify-center mb-6",
+              notification.type === 'SUCCESS' ? "bg-emerald-50 text-emerald-600" :
+              notification.type === 'WARNING' ? "bg-amber-50 text-amber-600" : "bg-red-50 text-red-600"
+            )}>
+              {notification.type === 'SUCCESS' ? <CheckCircle size={40} /> :
+               notification.type === 'WARNING' ? <AlertCircle size={40} /> : <AlertCircle size={40} />}
+            </div>
+            <h3 className="text-xl font-display font-black text-slate-800 mb-2 italic tracking-tight uppercase">
+              {notification.message}
+            </h3>
+            <p className="text-slate-500 text-sm font-medium mb-8 leading-relaxed">
+              {notification.submessage}
+            </p>
+            <button 
+              onClick={() => setNotification(null)}
+              className={cn(
+                "w-full py-4 rounded-2xl text-white font-bold text-sm uppercase tracking-widest transition-all active:scale-95",
+                notification.type === 'SUCCESS' ? "bg-emerald-600 shadow-emerald-600/20" :
+                notification.type === 'WARNING' ? "bg-amber-600 shadow-amber-600/20" : "bg-red-600 shadow-red-600/20"
+              )}
+            >
+              Mengerti
+            </button>
+          </motion.div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }
