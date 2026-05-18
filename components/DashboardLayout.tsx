@@ -37,6 +37,7 @@ const navItems: NavItem[] = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setSidebarOpen] = useState(true);
+  const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const pathname = usePathname();
   const router = useRouter();
@@ -195,21 +196,120 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </motion.aside>
 
+      {/* Sidebar - Mobile (Drawer) */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-50 md:hidden flex">
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            
+            {/* Sidebar drawer */}
+            <motion.aside
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+              className="relative flex flex-col w-64 max-w-[80vw] h-full bg-white text-slate-600 shadow-2xl"
+            >
+              <div className="p-6 flex justify-between items-center border-b border-slate-50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0 shadow-lg shadow-indigo-600/20 overflow-hidden">
+                    <img 
+                      src="/logo-sidebar.png" 
+                      alt="L" 
+                      className="w-full h-full object-contain p-1"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        // Add fallback UI
+                        const parent = e.currentTarget.parentElement;
+                        if (parent && parent.children.length === 1) {
+                          const span = document.createElement('span');
+                          span.className = "font-bold text-white";
+                          span.innerText = "D";
+                          parent.appendChild(span);
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-display font-bold text-slate-800 leading-none">SETDA DEMAK</span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">E-WFH Portal</span>
+                  </div>
+                </div>
+                
+                <button onClick={() => setMobileMenuOpen(false)} className="p-2 -mr-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+                {allowedNavItems.map((item) => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-medium text-sm",
+                        isActive 
+                          ? "bg-indigo-50 text-indigo-700" 
+                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      )}
+                    >
+                      <item.icon size={20} className={cn("shrink-0", isActive ? "text-indigo-600" : "text-slate-400")} />
+                      <span className="whitespace-nowrap">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
+
+              <div className="p-4 border-t border-slate-50">
+                <button 
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all font-medium text-sm"
+                >
+                  <LogOut size={20} className="shrink-0" />
+                  <span>Keluar</span>
+                </button>
+              </div>
+            </motion.aside>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between sticky top-0 z-10">
+        <header className="h-16 bg-white border-b border-slate-200 px-4 md:px-8 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-4">
+            {/* Desktop Toggle */}
             <button 
               onClick={() => setSidebarOpen(!isSidebarOpen)}
               className="p-2 hover:bg-slate-50 rounded-lg text-slate-400 md:flex hidden transition-colors"
             >
               <Menu size={20} />
             </button>
+            {/* Mobile Toggle */}
+            <button 
+              onClick={() => setMobileMenuOpen(true)}
+              className="p-2 hover:bg-slate-50 rounded-lg text-slate-400 flex md:hidden transition-colors"
+            >
+              <Menu size={20} />
+            </button>
             <div>
-              <h1 className="text-sm font-bold text-slate-800 hidden md:block leading-none">
+              <h1 className="text-sm font-bold text-slate-800 md:block leading-none hidden">
                 Setda Kabupaten Demak
               </h1>
-              <p className="text-[10px] text-slate-500 font-medium hidden md:block mt-1">E-WFH Monitoring System</p>
+              <p className="text-[10px] text-slate-500 font-medium md:block hidden mt-1">E-WFH Monitoring System</p>
             </div>
           </div>
 

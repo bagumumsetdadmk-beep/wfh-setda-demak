@@ -320,7 +320,9 @@ export default function LaporanKerjaPage() {
                     <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-3">
                         <Clock size={20} className="text-amber-500 shrink-0" />
                         <p className="text-[10px] text-amber-700 font-bold uppercase tracking-wide leading-relaxed">
-                            Batas waktu {activeTab === 'RENCANA' ? 'pengiriman rencana maksimal pukul 08:30 WIB' : 'pengiriman laporan maksimal pukul 17:00 WIB'}.
+                            {activeTab === 'RENCANA' 
+                              ? `Batas pengiriman maksimal 1 jam setelah shift masuk (${todaySchedule?.shift_mulai || '-'}).` 
+                              : `Hanya dapat dikirim mulai 1 jam sebelum shift pulang hingga jam pulang (${todaySchedule?.shift_selesai || '-'}).`}
                         </p>
                     </div>
 
