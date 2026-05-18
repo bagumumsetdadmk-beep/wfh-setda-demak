@@ -218,10 +218,10 @@ export default function DashboardPage() {
           {isPegawai ? (
             // PEGAWAI VIEW
             <>
-              <div className="md:col-span-4 md:row-span-2 dashboard-card flex flex-col justify-between">
+              <div className="md:col-span-4 dashboard-card flex flex-col justify-between p-4">
                 <div>
                   <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2">Status WFH Hari Ini</p>
-                  <h2 className="text-3xl font-bold text-slate-900 tracking-tight">
+                  <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
                     {dashboardData.isWfh ? 'Terjadwal WFH' : 'Tidak Terjadwal'}
                   </h2>
                   <p className="text-[10px] text-slate-500 font-medium flex items-center gap-1 mt-2">
@@ -229,15 +229,15 @@ export default function DashboardPage() {
                     {dashboardData.isWfh ? `Terjadwal sesuai plot` : 'Anda tidak dijadwalkan WFH hari ini'}
                   </p>
                 </div>
-                <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 mt-4">
-                  <CalendarIcon size={20} />
+                <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 mt-3">
+                  <CalendarIcon size={16} />
                 </div>
               </div>
 
-              <div className="md:col-span-4 md:row-span-2 dashboard-card flex flex-col justify-between">
+              <div className="md:col-span-4 dashboard-card flex flex-col justify-between p-4">
                 <div>
                   <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2">Absensi Hari Ini</p>
-                  <h2 className="text-3xl font-bold text-slate-900 tracking-tight">
+                  <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
                     {dashboardData.absenMasuk ? 'Sudah Absen' : 'Belum Absen'}
                   </h2>
                   <p className={cn("text-[10px] font-bold mt-2", dashboardData.absenMasuk ? "text-emerald-500" : "text-rose-500")}>
@@ -249,7 +249,7 @@ export default function DashboardPage() {
                 <button 
                   onClick={() => router.push('/dashboard/absensi')}
                   className={cn(
-                    "w-full mt-4 py-2 rounded-xl text-xs font-bold transition-all",
+                    "w-full mt-3 py-1.5 rounded-lg text-xs font-bold transition-all",
                     dashboardData.absenMasuk
                       ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                       : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
@@ -259,10 +259,10 @@ export default function DashboardPage() {
                 </button>
               </div>
 
-              <div className="md:col-span-4 md:row-span-2 bg-indigo-600 rounded-2xl p-6 shadow-xl shadow-indigo-600/20 text-white flex flex-col justify-between">
+              <div className="md:col-span-4 bg-indigo-600 rounded-2xl p-4 shadow-xl shadow-indigo-600/20 text-white flex flex-col justify-between">
                 <div>
                   <p className="text-indigo-100 text-[10px] font-bold uppercase tracking-wider mb-2">Laporan Kinerja</p>
-                  <h2 className="text-3xl font-bold tracking-tight">
+                  <h2 className="text-2xl font-bold tracking-tight">
                     {dashboardData.reports?.length > 0 ? `${dashboardData.reports.length} Laporan` : 'Kosong'}
                   </h2>
                   <p className="text-[10px] text-indigo-200 mt-2">
@@ -271,7 +271,7 @@ export default function DashboardPage() {
                 </div>
                 <button 
                   onClick={() => router.push('/dashboard/laporan')}
-                  className="w-full py-2.5 bg-white/20 hover:bg-white/30 rounded-xl text-xs font-bold transition-all backdrop-blur-md"
+                  className="w-full py-1.5 mt-3 bg-white/20 hover:bg-white/30 rounded-lg text-xs font-bold transition-all backdrop-blur-md"
                 >
                   Buat Laporan
                 </button>
@@ -280,24 +280,24 @@ export default function DashboardPage() {
           ) : (
             // ADMIN / ATASAN VIEW
             <>
-              <div className="md:col-span-4 md:row-span-2 dashboard-card flex flex-col justify-between">
+              <div className="md:col-span-4 dashboard-card flex flex-col justify-between p-4">
                 <div>
                   <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2">Terjadwal WFH</p>
-                  <h2 className="text-4xl font-bold text-slate-900 tracking-tight">{dashboardData.wfhCount || 0}</h2>
+                  <h2 className="text-3xl font-bold text-slate-900 tracking-tight">{dashboardData.wfhCount || 0}</h2>
                   <p className="text-[10px] text-slate-400 font-medium mt-2 flex items-center gap-1">
                     <CalendarIcon size={12} /> Total jadwal WFH hari ini
                   </p>
                 </div>
-                <div className="flex gap-1 h-2 bg-slate-100 rounded-full overflow-hidden mt-4">
+                <div className="flex gap-1 h-1.5 bg-slate-100 rounded-full overflow-hidden mt-3">
                   <div className="w-full bg-indigo-500"></div>
                 </div>
               </div>
 
-              <div className="md:col-span-4 md:row-span-2 dashboard-card flex flex-col justify-between">
+              <div className="md:col-span-4 dashboard-card flex flex-col justify-between p-4">
                 <div>
                   <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2">Swafoto Terkirim</p>
-                  <h2 className="text-4xl font-bold text-slate-900 tracking-tight">
-                    {dashboardData.absenCount || 0} <span className="text-lg text-slate-400 font-normal">/ {dashboardData.wfhCount || 0}</span>
+                  <h2 className="text-3xl font-bold text-slate-900 tracking-tight">
+                    {dashboardData.absenCount || 0} <span className="text-base text-slate-400 font-normal">/ {dashboardData.wfhCount || 0}</span>
                   </h2>
                   <p className="text-[10px] text-amber-500 font-bold mt-2">
                     {((dashboardData.wfhCount || 0) - (dashboardData.absenCount || 0)) > 0 
@@ -305,32 +305,32 @@ export default function DashboardPage() {
                       : 'Semua telah absen hari ini'}
                   </p>
                 </div>
-                <div className="flex -space-x-2 mt-4">
+                <div className="flex -space-x-2 mt-3">
                   {[1, 2, 3].map(i => (
-                    <div key={i} className="w-7 h-7 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-slate-400">
-                      <Camera size={12} />
+                    <div key={i} className="w-6 h-6 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-slate-400">
+                      <Camera size={10} />
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="md:col-span-4 md:row-span-2 bg-indigo-600 rounded-2xl p-6 shadow-xl shadow-indigo-600/20 text-white flex flex-col justify-between">
+              <div className="md:col-span-4 bg-indigo-600 rounded-2xl p-4 shadow-xl shadow-indigo-600/20 text-white flex flex-col justify-between">
                 <div>
                   <p className="text-indigo-100 text-[10px] font-bold uppercase tracking-wider mb-2">Laporan Masuk Hari Ini</p>
                   <div className="flex justify-between items-end mb-2 gap-4">
                       <div>
-                          <p className="text-[10px] text-indigo-200 uppercase tracking-widest mt-2">Rencana</p>
-                          <h2 className="text-3xl font-bold tracking-tight">{dashboardData.reportRencanaCount || 0}</h2>
+                          <p className="text-[10px] text-indigo-200 uppercase tracking-widest mt-1">Rencana</p>
+                          <h2 className="text-2xl font-bold tracking-tight">{dashboardData.reportRencanaCount || 0}</h2>
                       </div>
                       <div className="text-right">
-                           <p className="text-[10px] text-indigo-200 uppercase tracking-widest mt-2">Hasil</p>
-                           <h2 className="text-3xl font-bold tracking-tight">{dashboardData.reportHasilCount || 0}</h2>
+                           <p className="text-[10px] text-indigo-200 uppercase tracking-widest mt-1">Hasil</p>
+                           <h2 className="text-2xl font-bold tracking-tight">{dashboardData.reportHasilCount || 0}</h2>
                       </div>
                   </div>
                 </div>
                 <button 
                   onClick={() => router.push('/dashboard/approval')}
-                  className="w-full py-2.5 bg-white/20 hover:bg-white/30 rounded-xl text-xs font-bold transition-all backdrop-blur-md mt-2"
+                  className="w-full py-1.5 mt-2 bg-white/20 hover:bg-white/30 rounded-lg text-xs font-bold transition-all backdrop-blur-md"
                 >
                   Tinjau Semua
                 </button>
