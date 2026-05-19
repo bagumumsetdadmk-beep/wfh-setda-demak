@@ -21,6 +21,7 @@ export default function LaporanKerjaPage() {
   const [activeTab, setActiveTab] = useState<'RENCANA' | 'HASIL'>('RENCANA');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [content, setContent] = useState('');
+  const [lampiran, setLampiran] = useState('');
   const [reports, setReports] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -143,7 +144,7 @@ export default function LaporanKerjaPage() {
             setNotification({
                 type: 'WARNING',
                 message: 'Batas Waktu Terlewati',
-                submessage: `Pengiriman Rencana Kerja maksimal 1 jam setelah jam shift masuk (${todaySchedule.shift_mulai}). Anda sudah melewati batas waktu.`
+                submessage: `Pengiriman Rencana Kerja maksimal 1 jam setelah jam absensi masuk (${todaySchedule.shift_mulai}). Anda sudah melewati batas waktu.`
             });
             return;
           }
@@ -155,7 +156,7 @@ export default function LaporanKerjaPage() {
             setNotification({
                 type: 'WARNING',
                 message: 'Belum Waktunya',
-                submessage: `Laporan Hasil Kerja hanya dapat dikirim mulai 1 jam sebelum jam pulang (${todaySchedule.shift_selesai}).`
+                submessage: `Laporan Hasil Kerja hanya dapat dikirim mulai 1 jam sebelum jam absensi pulang (${todaySchedule.shift_selesai}).`
             });
             return;
           }
@@ -164,7 +165,7 @@ export default function LaporanKerjaPage() {
             setNotification({
                 type: 'WARNING',
                 message: 'Batas Waktu Terlewati',
-                submessage: `Pengiriman Laporan Hasil Kerja maksimal pada jam pulang (${todaySchedule.shift_selesai}). Anda sudah melewati batas waktu pengiriman.`
+                submessage: `Pengiriman Laporan Hasil Kerja maksimal pada jam absensi pulang (${todaySchedule.shift_selesai}). Anda sudah melewati batas waktu pengiriman.`
             });
             return;
           }
@@ -182,6 +183,7 @@ export default function LaporanKerjaPage() {
           .from('work_reports')
           .update({
             konten: content,
+            lampiran: activeTab === 'HASIL' ? lampiran : null,
             status: 'PENDING',
             status_approval: 'PENDING'
           })
@@ -195,6 +197,7 @@ export default function LaporanKerjaPage() {
           tanggal: today,
           tipe: activeTab,
           konten: content,
+          lampiran: activeTab === 'HASIL' ? lampiran : null,
           status: 'PENDING'
         });
 
@@ -202,6 +205,7 @@ export default function LaporanKerjaPage() {
       }
 
       setContent('');
+      setLampiran('');
       setIsSubmitted(true);
       fetchReports();
       setTimeout(() => setIsSubmitted(false), 3000);
@@ -245,6 +249,7 @@ export default function LaporanKerjaPage() {
   const handleEdit = (report: any) => {
     setEditingId(report.id);
     setContent(report.konten || report.content);
+    setLampiran(report.lampiran || '');
     setActiveTab(report.tipe as any);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -316,13 +321,29 @@ export default function LaporanKerjaPage() {
                             className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
                         />
                     </div>
+                    
+                    {activeTab === 'HASIL' && (
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 italic">
+                               Tautan Bukti Kerja / Lampiran (Opsional)
+                            </label>
+                            <input 
+                                type="url"
+                                value={lampiran}
+                                onChange={(e) => setLampiran(e.target.value)}
+                                placeholder="Contoh: https://drive.google.com/..."
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                            />
+                            <p className="text-[10px] text-slate-500 mt-2 font-medium">Jika ukuran file terlalu besar, kami sangat menyarankan mengunggahnya ke Google Drive/OneDrive lalu tautkan pada isian di atas.</p>
+                        </div>
+                    )}
 
                     <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-3">
                         <Clock size={20} className="text-amber-500 shrink-0" />
                         <p className="text-[10px] text-amber-700 font-bold uppercase tracking-wide leading-relaxed">
                             {activeTab === 'RENCANA' 
-                              ? `Batas pengiriman maksimal 1 jam setelah shift masuk (${todaySchedule?.shift_mulai || '-'}).` 
-                              : `Hanya dapat dikirim mulai 1 jam sebelum shift pulang hingga jam pulang (${todaySchedule?.shift_selesai || '-'}).`}
+                              ? `Batas pengiriman maksimal 1 jam setelah absensi masuk (${todaySchedule?.shift_mulai || '-'}).` 
+                              : `Hanya dapat dikirim mulai 1 jam sebelum absensi pulang hingga jam absensi pulang (${todaySchedule?.shift_selesai || '-'}).`}
                         </p>
                     </div>
 
@@ -395,6 +416,19 @@ export default function LaporanKerjaPage() {
                                 </div>
                             </div>
                             <p className="text-sm font-medium text-slate-700 whitespace-pre-wrap">{report.konten || report.content}</p>
+                            {report.lampiran && (
+                                <div className="mt-4 pt-3 border-t border-slate-100">
+                                    <p className="text-[10px] font-bold text-slate-400 tracking-widest uppercase mb-2">Lampiran Bukti Kerja:</p>
+                                    <a 
+                                        href={report.lampiran}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2 px-3 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-all"
+                                    >
+                                        Buka Tautan Bukti Kerja
+                                    </a>
+                                </div>
+                            )}
                             {(report.catatan_atasan || report.catatan) && (
                                 <div className="mt-4 p-3 bg-amber-50 rounded-xl border border-amber-100">
                                     <p className="text-[10px] font-black text-amber-800 tracking-widest uppercase mb-1 flex items-center gap-1">
@@ -415,21 +449,21 @@ export default function LaporanKerjaPage() {
 
           {/* Guidelines */}
           <div className="space-y-6">
-            <div className="dashboard-card bg-slate-900 text-white border-none shadow-xl shadow-slate-900/20">
+            <div className="dashboard-card border-indigo-100">
                 <div className="flex items-center gap-2 mb-6">
-                    <AlertCircle size={18} className="text-blue-400" />
-                    <h4 className="text-xs font-bold uppercase tracking-widest italic tracking-tight">Ketentuan Pelaporan</h4>
+                    <AlertCircle size={18} className="text-indigo-500" />
+                    <h4 className="text-xs font-bold uppercase tracking-widest italic tracking-tight text-slate-800">Ketentuan Pelaporan</h4>
                 </div>
                 <ol className="space-y-4">
                     {[
-                        'Isi rencana kerja sebelum memulai shift WFH.',
+                        'Isi rencana kerja maksimal 1 jam setelah jam absensi masuk WFH.',
                         'Lampirkan detail output yang konkrit.',
                         'Segala bentuk keterlambatan akan mempengaruhi tunjangan kinerja.',
                         'Laporan dengan status REVISION wajib diperbaiki segera.'
                     ].map((step, i) => (
                         <li key={i} className="flex gap-3 items-start">
-                            <span className="text-blue-400 font-black italic">0{i+1}</span>
-                            <p className="text-xs text-slate-300 leading-relaxed font-medium">{step}</p>
+                            <span className="text-indigo-500 font-black italic">0{i+1}</span>
+                            <p className="text-xs text-slate-700 leading-relaxed font-semibold">{step}</p>
                         </li>
                     ))}
                 </ol>

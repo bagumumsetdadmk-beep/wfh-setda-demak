@@ -155,6 +155,7 @@ export default function PegawaiPage() {
             jabatan: p.jabatan || '',
             unit_kerja: p.unit_kerja || '',
             role: p.role,
+            password: '',
         });
         setError(null);
         setIsModalOpen(true);
@@ -392,19 +393,22 @@ export default function PegawaiPage() {
                                 <option value="ADMIN">ADMIN</option>
                             </select>
                         </div>
-                        {!formData.id && (
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Password Default</label>
-                                <input 
-                                    type="text"
-                                    required
-                                    value={formData.password}
-                                    onChange={e => setFormData({...formData, password: e.target.value})}
-                                    className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-500 bg-slate-50"
-                                />
-                                <p className="text-[10px] text-slate-400 mt-1">Pegawai dapat login dengan NIP dan password ini.</p>
-                            </div>
-                        )}
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">
+                                {formData.id ? 'Ubah Password (Opsional)' : 'Password Default'}
+                            </label>
+                            <input 
+                                type="text"
+                                required={!formData.id}
+                                value={formData.password}
+                                onChange={e => setFormData({...formData, password: e.target.value})}
+                                className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-500 bg-slate-50"
+                                placeholder={formData.id ? 'Kosongkan jika tidak diubah' : ''}
+                            />
+                            <p className="text-[10px] text-slate-400 mt-1">
+                                {formData.id ? 'Isi untuk mereset password pegawai ini. Minimal 6 karakter.' : 'Pegawai dapat login dengan NIP dan password ini.'}
+                            </p>
+                        </div>
                         <div className="pt-4 flex gap-2">
                             <button 
                                 type="button" 

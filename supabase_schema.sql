@@ -48,6 +48,7 @@ CREATE TABLE work_reports (
   tanggal DATE DEFAULT CURRENT_DATE NOT NULL,
   tipe TEXT NOT NULL CHECK (tipe IN ('RENCANA', 'HASIL')),
   konten TEXT NOT NULL,
+  lampiran TEXT,
   status_approval TEXT DEFAULT 'PENDING' CHECK (status_approval IN ('PENDING', 'APPROVED', 'REJECTED')),
   catatan_atasan TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL

@@ -107,7 +107,7 @@ export default function ApprovalPage() {
             subtitle: r.tipe === 'RENCANA' ? 'Rencana Kerja' : 'Capaian Kinerja',
             time: new Date(r.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
             status: r.status || r.status_approval || 'PENDING',
-            data: { detail: r.konten || r.content },
+            data: { detail: r.konten || r.content, lampiran: r.lampiran },
             originalTable: 'work_reports'
           };
       });
@@ -325,6 +325,19 @@ export default function ApprovalPage() {
                                         <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Konten Laporan Harian</p>
                                             <p className="text-sm font-medium text-slate-700 leading-relaxed italic border-l-2 border-indigo-200 pl-4">&quot;{selectedItem.data.detail || selectedItem.data.konten}&quot;</p>
+                                            {selectedItem.data.lampiran && (
+                                                <div className="pt-3 border-t border-slate-200">
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Lampiran Bukti Kerja:</p>
+                                                    <a 
+                                                        href={selectedItem.data.lampiran}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-2 px-3 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-all"
+                                                    >
+                                                        Buka Tautan Bukti Kerja
+                                                    </a>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
