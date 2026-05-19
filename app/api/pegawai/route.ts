@@ -37,6 +37,9 @@ export async function POST(req: Request) {
     });
 
     if (authError) {
+      if (authError.message.includes('User already registered')) {
+        return NextResponse.json({ error: 'NIP/ID ini sudah digunakan. Jika satu atasan menjabat di 2 bagian, silakan ubah digit terakhir NIP (contoh: akhiran 1 diganti A) agar tidak lebih dari 18 karakter.' }, { status: 400 });
+      }
       return NextResponse.json({ error: authError.message }, { status: 400 });
     }
 
@@ -129,6 +132,9 @@ export async function PUT(req: Request) {
     if (Object.keys(authUpdatePayload).length > 0) {
       const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(id, authUpdatePayload);
       if (authUpdateError) {
+         if (authUpdateError.message.includes('User already registered') || authUpdateError.message.includes('A user with this email address has already been registered')) {
+            return NextResponse.json({ error: 'NIP/ID ini sudah digunakan. Jika satu atasan menjabat di 2 bagian, silakan ubah digit terakhir NIP (contoh: akhiran 1 diganti A) agar tidak lebih dari 18 karakter.' }, { status: 400 });
+         }
          return NextResponse.json({ error: authUpdateError.message }, { status: 400 });
       }
     }

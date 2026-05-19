@@ -336,15 +336,17 @@ export default function PegawaiPage() {
                             </div>
                         )}
                         <div>
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">NIP (18 Digit)</label>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">NIP (atau ID Login)</label>
                             <input 
                                 type="text"
                                 required
+                                maxLength={18}
                                 value={formData.nip}
                                 onChange={e => setFormData({...formData, nip: e.target.value})}
                                 className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-500"
                                 placeholder="Contoh: 198501012010011001"
                             />
+                            <p className="text-[10px] text-slate-400 mt-1">Maksimal 18 karakter. Jika atasan membawahi lebih dari 1 bagian, ubah digit terakhir (contoh: akhiran 1 jadi A) sebagai ID login kedua.</p>
                         </div>
                         <div>
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Nama Lengkap</label>
