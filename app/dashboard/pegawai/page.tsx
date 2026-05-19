@@ -13,7 +13,8 @@ import {
     Edit2,
     Trash2,
     X,
-    Loader2
+    Loader2,
+    AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase, Profile, BAGIAN_LIST } from '@/lib/supabase';
@@ -34,6 +35,8 @@ export default function PegawaiPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'PEGAWAI' | 'ATASAN' | 'ADMIN' | 'ALL'>('ALL');
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [pegawaiToDelete, setPegawaiToDelete] = useState<{ id: string; nip: string; nama_lengkap: string } | null>(null);
     const [formData, setFormData] = useState<PegawaiFormData>({
         nip: '',
         nama_lengkap: '',
@@ -99,12 +102,19 @@ export default function PegawaiPage() {
         }
     };
 
-    const handleDelete = async (id: string, nip: string) => {
-        if (!confirm('Apakah Anda yakin ingin menghapus data pegawai ini?')) return;
+    const promptDelete = (asn: Profile) => {
+        setPegawaiToDelete({ id: asn.id, nip: asn.nip, nama_lengkap: asn.nama_lengkap });
+        setError(null);
+        setDeleteModalOpen(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!pegawaiToDelete) return;
+        setFormLoading(true);
+        setError(null);
         
         try {
-            // Delete from api
-            const res = await fetch(`/api/pegawai?id=${id}`, {
+            const res = await fetch(`/api/pegawai?id=${pegawaiToDelete.id}`, {
                 method: 'DELETE',
             });
             const contentType = res.headers.get("content-type");
@@ -113,9 +123,14 @@ export default function PegawaiPage() {
             }
             const result = await res.json();
             if (!res.ok) throw new Error(result.error);
+            
+            setDeleteModalOpen(false);
+            setPegawaiToDelete(null);
             fetchPegawai();
         } catch (err: any) {
-            alert('Error deleting: ' + err.message);
+            setError(err.message);
+        } finally {
+            setFormLoading(false);
         }
     };
 
@@ -283,7 +298,7 @@ export default function PegawaiPage() {
                                                 <button onClick={() => openEditModal(asn)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
                                                     <Edit2 size={16} />
                                                 </button>
-                                                <button onClick={() => handleDelete(asn.id, asn.nip)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all">
+                                                <button onClick={() => promptDelete(asn)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all">
                                                     <Trash2 size={16} />
                                                 </button>
                                             </div>
@@ -392,20 +407,65 @@ export default function PegawaiPage() {
                             <button 
                                 type="button" 
                                 onClick={() => setIsModalOpen(false)}
-                                className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 text-sm font-semibold rounded-xl hover:bg-slate-50"
+                                className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-all font-medium"
                             >
                                 Batal
                             </button>
                             <button 
                                 type="submit" 
                                 disabled={formLoading}
-                                className="flex-1 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                                className="flex-1 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                             >
                                 {formLoading && <Loader2 size={16} className="animate-spin" />}
                                 Simpan
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+        )}
+
+        {/* Modal Konfirmasi Delete */}
+        {deleteModalOpen && pegawaiToDelete && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+                <div className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col items-center text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mb-6">
+                        <AlertTriangle size={32} />
+                    </div>
+                    <h3 className="text-xl font-display font-black text-slate-800 mb-2 tracking-tight">Hapus Pegawai?</h3>
+                    <p className="text-slate-500 text-sm font-medium mb-1">
+                        Anda yakin ingin menghapus data pegawai <span className="font-bold text-slate-800">{pegawaiToDelete.nama_lengkap}</span>?
+                    </p>
+                    <p className="text-rose-500 text-[10px] font-bold uppercase tracking-wider mb-8">
+                        Tindakan ini tidak dapat dibatalkan.
+                    </p>
+
+                    {error && (
+                        <div className="w-full mb-6 p-3 text-xs font-semibold text-rose-600 bg-rose-50 rounded-lg text-left">
+                            {error}
+                        </div>
+                    )}
+
+                    <div className="w-full flex gap-3">
+                        <button 
+                            onClick={() => {
+                                setDeleteModalOpen(false);
+                                setPegawaiToDelete(null);
+                                setError(null);
+                            }}
+                            disabled={formLoading}
+                            className="flex-1 py-3 rounded-2xl border border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all disabled:opacity-50"
+                        >
+                            Batal
+                        </button>
+                        <button 
+                            onClick={confirmDelete}
+                            disabled={formLoading}
+                            className="flex-1 py-3 rounded-2xl bg-rose-600 shadow-rose-600/20 text-white font-bold text-xs uppercase tracking-widest transition-all hover:bg-rose-700 disabled:opacity-50 flex justify-center items-center gap-2"
+                        >
+                            {formLoading ? <Loader2 size={16} className="animate-spin" /> : 'Hapus'}
+                        </button>
+                    </div>
                 </div>
             </div>
         )}
