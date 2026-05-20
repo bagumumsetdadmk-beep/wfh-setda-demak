@@ -248,7 +248,7 @@ export default function AbsensiPage() {
                 setNotification({
                     type: 'WARNING',
                     message: 'Diluar Jendela Absensi',
-                    submessage: `Absensi MASUK gagal: Anda hanya dapat absen masuk maksimal hingga jam shift mulai (${todaySchedule.shift_mulai}).`
+                    submessage: `Absensi MASUK gagal: Anda hanya dapat absen masuk mulai 3 jam sebelum shift kerja hingga tepat pada saat shift kerja dimulai (${todaySchedule.shift_mulai}).`
                 });
                 return;
             }
