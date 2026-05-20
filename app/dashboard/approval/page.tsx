@@ -27,6 +27,7 @@ interface ApprovalItem {
     nip: string;
     type: ApprovalType;
     subtitle: string;
+    date: string;
     time: string;
     status: string;
     data: any;
@@ -87,6 +88,7 @@ export default function ApprovalPage() {
             nip: (profile as any)?.nip || '-',
             type: 'ABSENSI',
             subtitle: `Absensi ${a.tipe || a.type || 'Harian'}`,
+            date: new Date(a.waktu_absen).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
             time: new Date(a.waktu_absen).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
             status: a.status || 'PENDING',
             data: { photo: a.foto_url || a.photo_url, loc: a.geotag?.address || `Lat: ${a.latitude}, Lng: ${a.longitude}` },
@@ -105,6 +107,7 @@ export default function ApprovalPage() {
             nip: (profile as any)?.nip || '-',
             type: r.tipe === 'RENCANA' ? 'RENCANA' : 'HASIL',
             subtitle: r.tipe === 'RENCANA' ? 'Rencana Kerja' : 'Capaian Kinerja',
+            date: new Date(r.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
             time: new Date(r.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
             status: r.status || r.status_approval || 'PENDING',
             data: { detail: r.konten || r.content, lampiran: r.lampiran },
@@ -241,7 +244,7 @@ export default function ApprovalPage() {
                                             <p className="text-xs font-black text-slate-800 mb-0.5 truncate uppercase italic tracking-tight">{item.user}</p>
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                                                    {item.subtitle} • <Clock size={10} /> {item.time} WIB
+                                                    {item.subtitle} • {item.date} • <Clock size={10} /> {item.time} WIB
                                                 </p>
                                                 <span className={cn(
                                                     "text-[8px] font-black uppercase px-2 py-0.5 rounded italic",
@@ -302,7 +305,7 @@ export default function ApprovalPage() {
                                         </div>
                                         <div>
                                             <p className="text-base font-black text-slate-800 leading-tight uppercase italic">{selectedItem.user}</p>
-                                            <p className="text-[10px] font-bold text-slate-400 tracking-widest">NIP. {selectedItem.nip}</p>
+                                            <p className="text-[10px] font-bold text-slate-400 tracking-widest">NIP. {selectedItem.nip} • {selectedItem.date} {selectedItem.time} WIB</p>
                                         </div>
                                     </div>
                                 </div>
