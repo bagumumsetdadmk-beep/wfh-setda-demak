@@ -196,7 +196,7 @@ export default function JadwalPage() {
         {/* Bento Grid Layout */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-5 auto-rows-[auto]">
           {/* Calendar Widget */}
-          <div className="md:col-span-4 md:row-span-4 dashboard-card flex flex-col h-[380px]">
+          <div className="md:col-span-4 md:row-span-4 dashboard-card flex flex-col min-h-[380px] h-auto pb-6">
                 <div className="flex items-center justify-between mb-8">
                     <span className="text-sm font-bold text-slate-800 tracking-tight uppercase">
                         {currentDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
