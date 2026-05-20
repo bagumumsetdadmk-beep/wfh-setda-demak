@@ -242,13 +242,13 @@ export default function AbsensiPage() {
 
         if (type === 'MASUK') {
             const startWindow = timeMasuk - 180; // 3 jam sebelum shift mulai
-            const endWindow = timePulang;        // Limit absensi masuk sampai waktu shift selesai
+            const endWindow = timeMasuk;         // Limit absensi masuk sampai batas akhir jam shift mulai
             
             if (testTime < startWindow || testTime > endWindow) {
                 setNotification({
                     type: 'WARNING',
                     message: 'Diluar Jendela Absensi',
-                    submessage: `Absensi MASUK gagal: Anda hanya dapat absen masuk mulai 3 jam sebelum shift masuk (${todaySchedule.shift_mulai}) hingga jam shift pulang (${todaySchedule.shift_selesai}).`
+                    submessage: `Absensi MASUK gagal: Anda hanya dapat absen masuk maksimal hingga jam shift mulai (${todaySchedule.shift_mulai}).`
                 });
                 return;
             }

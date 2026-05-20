@@ -33,6 +33,7 @@ const navItems: NavItem[] = [
   { label: 'Absensi', href: '/dashboard/absensi', icon: ClipboardCheck },
   { label: 'Laporan Kerja', href: '/dashboard/laporan', icon: FileText },
   { label: 'Persetujuan', href: '/dashboard/approval', icon: Bell },
+  { label: 'Laporan BKPSDM', href: '/dashboard/laporan-bkpsdm', icon: FileText },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -102,6 +103,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const restrictedForAdmin = ['Absensi', 'Laporan Kerja'];
       return !restrictedForAdmin.includes(item.label);
     }
+
+    // Atasan/Pegawai should not see Laporan BKPSDM
+    if (item.label === 'Laporan BKPSDM') return false;
 
     // Atasan sees only Dashboard, Jadwal WFH, and Persetujuan
     if (userProfile.role === 'ATASAN') {
