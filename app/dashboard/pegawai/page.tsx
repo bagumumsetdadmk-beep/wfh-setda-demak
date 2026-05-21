@@ -14,10 +14,14 @@ import {
     Trash2,
     X,
     Loader2,
-    AlertTriangle
+    AlertTriangle,
+    Download,
+    Upload
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { cn } from '@/lib/utils';
 import { supabase, Profile, BAGIAN_LIST } from '@/lib/supabase';
+import { useRef } from 'react';
 
 interface PegawaiFormData {
     id?: string;
@@ -46,7 +50,9 @@ export default function PegawaiPage() {
         password: 'password123'
     });
     const [formLoading, setFormLoading] = useState(false);
+    const [importLoading, setImportLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const fetchPegawai = async () => {
         setLoading(true);
@@ -67,6 +73,98 @@ export default function PegawaiPage() {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchPegawai();
     }, []);
+
+    const handleExportExcel = () => {
+        const dataToExport = pegawai.length > 0 ? pegawai.map(p => ({
+            NIP: p.nip,
+            'Nama Lengkap': p.nama_lengkap,
+            Jabatan: p.jabatan || '',
+            'Unit Kerja': p.unit_kerja || '',
+            Role: p.role,
+            Password: '' 
+        })) : [{
+            NIP: '198501012010011001',
+            'Nama Lengkap': 'John Doe',
+            Jabatan: 'Ahli Pertama',
+            'Unit Kerja': 'BAGIAN UMUM',
+            Role: 'PEGAWAI',
+            Password: 'password123'
+        }];
+
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        
+        // Auto width for columns
+        const colWidths = [
+            { wch: 20 }, // NIP
+            { wch: 30 }, // Nama Lengkap
+            { wch: 25 }, // Jabatan
+            { wch: 25 }, // Unit Kerja
+            { wch: 15 }, // Role
+            { wch: 15 }, // Password
+        ];
+        ws['!cols'] = colWidths;
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Pegawai");
+        XLSX.writeFile(wb, "Data_Pegawai.xlsx");
+    };
+
+    const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setImportLoading(true);
+        try {
+            const data = await file.arrayBuffer();
+            const wb = XLSX.read(data);
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(ws) as any[];
+
+            let successCount = 0;
+            let errorCount = 0;
+
+            for (const row of jsonData) {
+                if (!row.NIP || !row['Nama Lengkap']) {
+                    errorCount++;
+                    continue;
+                }
+                
+                const payload = {
+                    nip: String(row.NIP),
+                    nama_lengkap: String(row['Nama Lengkap']),
+                    jabatan: row.Jabatan ? String(row.Jabatan) : '',
+                    unit_kerja: row['Unit Kerja'] ? String(row['Unit Kerja']) : '',
+                    role: row.Role ? String(row.Role).toUpperCase() : 'PEGAWAI',
+                    password: row.Password ? String(row.Password) : 'password123'
+                };
+
+                try {
+                    const res = await fetch('/api/pegawai', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if (res.ok) {
+                        successCount++;
+                    } else {
+                        errorCount++;
+                    }
+                } catch {
+                    errorCount++;
+                }
+            }
+
+            alert(`Import selesai!\nBerhasil: ${successCount}\nGagal/Sudah ada: ${errorCount}`);
+            fetchPegawai();
+        } catch (error: any) {
+            console.error(error);
+            alert('Gagal import data: ' + error.message);
+        } finally {
+            setImportLoading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -182,10 +280,34 @@ export default function PegawaiPage() {
                 <h2 className="text-xl font-bold text-slate-900 tracking-tight leading-none mb-1">Daftar Pegawai</h2>
                 <p className="text-xs text-slate-500 font-medium">Manajemen data ASN Sekretariat Daerah Kabupaten Demak.</p>
             </div>
-            <button onClick={openCreateModal} className="btn-primary flex items-center gap-2">
-                <UserPlus size={16} />
-                Pegawai Baru
-            </button>
+            <div className="flex items-center gap-2">
+                <input 
+                    type="file" 
+                    accept=".xlsx, .xls" 
+                    className="hidden" 
+                    ref={fileInputRef}
+                    onChange={handleImportExcel}
+                />
+                <button 
+                    onClick={() => fileInputRef.current?.click()} 
+                    disabled={importLoading}
+                    className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition-all font-semibold text-sm disabled:opacity-50"
+                >
+                    {importLoading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                    <span className="hidden sm:inline">Import</span>
+                </button>
+                <button 
+                    onClick={handleExportExcel}
+                    className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition-all font-semibold text-sm"
+                >
+                    <Download size={16} />
+                    <span className="hidden sm:inline">Export</span>
+                </button>
+                <button onClick={openCreateModal} className="btn-primary flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 font-bold text-sm">
+                    <UserPlus size={16} />
+                    <span className="hidden sm:inline">Pegawai Baru</span>
+                </button>
+            </div>
         </div>
 
         {/* Bento Stats Grid */}
