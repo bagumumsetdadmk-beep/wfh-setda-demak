@@ -41,6 +41,7 @@ export default function ApprovalPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [catatan, setCatatan] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const fetchApprovals = async () => {
     setIsLoading(true);
@@ -49,7 +50,8 @@ export default function ApprovalPage() {
       if (!session) return;
 
       const { data: profileData } = await supabase.from('profiles').select('role, unit_kerja').eq('id', session.user.id).single();
-      const isAdmin = profileData?.role === 'ADMIN' || (session.user.email || '').toLowerCase().includes('admin');
+      const adminStatus = profileData?.role === 'ADMIN' || (session.user.email || '').toLowerCase().includes('admin');
+      setIsAdmin(adminStatus);
       const unitKerja = profileData?.unit_kerja;
 
       let attendanceQuery = supabase.from('attendance')
@@ -60,7 +62,7 @@ export default function ApprovalPage() {
         .select('*, profiles!work_reports_user_id_fkey!inner(id, nama_lengkap, nip, unit_kerja)')
         .order('created_at', { ascending: false });
 
-      if (!isAdmin && unitKerja) {
+      if (!adminStatus && unitKerja) {
         attendanceQuery = attendanceQuery.eq('profiles.unit_kerja', unitKerja);
         reportQuery = reportQuery.eq('profiles.unit_kerja', unitKerja);
       }
@@ -77,7 +79,7 @@ export default function ApprovalPage() {
         console.error('Reports fetch error:', reports.error);
       }
 
-      const attendanceItems: (ApprovalItem & { rawDate: number })[] = (attendances.data || [])
+      const attendanceItems: ApprovalItem[] = (attendances.data || [])
         .map(a => {
           const profile = a.profiles;
           return {
@@ -91,12 +93,11 @@ export default function ApprovalPage() {
             time: new Date(a.waktu_absen).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
             status: a.status || 'PENDING',
             data: { photo: a.foto_url || a.photo_url, loc: a.geotag?.address || `Lat: ${a.latitude}, Lng: ${a.longitude}` },
-            originalTable: 'attendance',
-            rawDate: new Date(a.waktu_absen).getTime()
+            originalTable: 'attendance'
           };
       });
 
-      const reportItems: (ApprovalItem & { rawDate: number })[] = (reports.data || [])
+      const reportItems: ApprovalItem[] = (reports.data || [])
         .map(r => {
           const profile = r.profiles;
           return {
@@ -110,14 +111,11 @@ export default function ApprovalPage() {
             time: new Date(r.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
             status: r.status || r.status_approval || 'PENDING',
             data: { detail: r.konten || r.content, lampiran: r.lampiran },
-            originalTable: 'work_reports',
-            rawDate: new Date(r.created_at).getTime()
+            originalTable: 'work_reports'
           };
       });
 
-      const combined = [...attendanceItems, ...reportItems];
-      combined.sort((a, b) => b.rawDate - a.rawDate);
-      setItems(combined);
+      setItems([...attendanceItems, ...reportItems]);
     } catch (err) {
       console.error('Error fetching approvals:', err);
     } finally {
@@ -346,8 +344,20 @@ export default function ApprovalPage() {
                                         </div>
                                     )}
 
-                                    {selectedItem.status === 'PENDING' ? (
+                                    {selectedItem.status === 'PENDING' || isAdmin ? (
                                         <>
+                                            {selectedItem.status !== 'PENDING' && (
+                                                <div className="mb-4 text-center">
+                                                    <span className={cn(
+                                                        "text-[10px] font-black uppercase px-4 py-1.5 rounded-full italic shadow-sm",
+                                                        selectedItem.status === 'APPROVED' ? "bg-emerald-500 text-white" :
+                                                        selectedItem.status === 'REVISION' ? "bg-amber-500 text-white" :
+                                                        "bg-rose-500 text-white"
+                                                    )}>
+                                                        MODE ADMIN: STATUS SAAT INI {selectedItem.status}
+                                                    </span>
+                                                </div>
+                                            )}
                                             <div className="space-y-3 pt-4 border-t border-slate-100">
                                                 <div className="flex items-center justify-between">
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Berikan Feedback / Catatan</label>
