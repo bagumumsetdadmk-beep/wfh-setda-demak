@@ -77,8 +77,7 @@ export default function ApprovalPage() {
         console.error('Reports fetch error:', reports.error);
       }
 
-      const attendanceItems: ApprovalItem[] = (attendances.data || [])
-        .filter(a => isAdmin || (a.status === 'PENDING' || a.status === null))
+      const attendanceItems: (ApprovalItem & { rawDate: number })[] = (attendances.data || [])
         .map(a => {
           const profile = a.profiles;
           return {
@@ -92,12 +91,12 @@ export default function ApprovalPage() {
             time: new Date(a.waktu_absen).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
             status: a.status || 'PENDING',
             data: { photo: a.foto_url || a.photo_url, loc: a.geotag?.address || `Lat: ${a.latitude}, Lng: ${a.longitude}` },
-            originalTable: 'attendance'
+            originalTable: 'attendance',
+            rawDate: new Date(a.waktu_absen).getTime()
           };
       });
 
-      const reportItems: ApprovalItem[] = (reports.data || [])
-        .filter(r => isAdmin || (r.status === 'PENDING' || r.status === null || r.status_approval === 'PENDING' || r.status_approval === null))
+      const reportItems: (ApprovalItem & { rawDate: number })[] = (reports.data || [])
         .map(r => {
           const profile = r.profiles;
           return {
@@ -111,11 +110,14 @@ export default function ApprovalPage() {
             time: new Date(r.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
             status: r.status || r.status_approval || 'PENDING',
             data: { detail: r.konten || r.content, lampiran: r.lampiran },
-            originalTable: 'work_reports'
+            originalTable: 'work_reports',
+            rawDate: new Date(r.created_at).getTime()
           };
       });
 
-      setItems([...attendanceItems, ...reportItems]);
+      const combined = [...attendanceItems, ...reportItems];
+      combined.sort((a, b) => b.rawDate - a.rawDate);
+      setItems(combined);
     } catch (err) {
       console.error('Error fetching approvals:', err);
     } finally {
@@ -173,8 +175,8 @@ export default function ApprovalPage() {
               is_read: false
           });
           
-          setItems(items.filter(i => i.id !== item.id));
-          setSelectedItem(null);
+          setItems(items.map(i => i.id === item.id ? { ...i, status: status } : i));
+          setSelectedItem(prev => prev && prev.id === item.id ? { ...prev, status: status } : prev);
           setCatatan('');
       } catch (err: any) {
           alert('Gagal memproses: ' + err.message);
@@ -344,36 +346,50 @@ export default function ApprovalPage() {
                                         </div>
                                     )}
 
-                                    <div className="space-y-3 pt-4 border-t border-slate-100">
-                                        <div className="flex items-center justify-between">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Berikan Feedback / Catatan</label>
-                                            <MessageSquare size={14} className="text-slate-300" />
-                                        </div>
-                                        <textarea 
-                                            value={catatan}
-                                            onChange={(e) => setCatatan(e.target.value)}
-                                            placeholder="Opsional: Alasan penolakan atau instruksi perbaikan..."
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
-                                            rows={3}
-                                        />
-                                    </div>
-                                </div>
+                                    {selectedItem.status === 'PENDING' ? (
+                                        <>
+                                            <div className="space-y-3 pt-4 border-t border-slate-100">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Berikan Feedback / Catatan</label>
+                                                    <MessageSquare size={14} className="text-slate-300" />
+                                                </div>
+                                                <textarea 
+                                                    value={catatan}
+                                                    onChange={(e) => setCatatan(e.target.value)}
+                                                    placeholder="Opsional: Alasan penolakan atau instruksi perbaikan..."
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                                                />
+                                            </div>
 
-                                <div className="grid grid-cols-2 gap-4 mt-8 pt-6 border-t border-slate-100">
-                                    <button 
-                                        disabled={isProcessing}
-                                        onClick={() => handleAction(selectedItem, 'REVISION')}
-                                        className="py-4 px-4 bg-amber-500 text-white rounded-2xl font-bold text-[10px] uppercase tracking-widest hover:bg-amber-600 shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                    >
-                                        <Clock size={16} /> Perlu Perbaikan
-                                    </button>
-                                    <button 
-                                        disabled={isProcessing}
-                                        onClick={() => handleAction(selectedItem, 'APPROVED')}
-                                        className="py-4 px-4 bg-emerald-600 text-white rounded-2xl font-bold text-[10px] uppercase tracking-widest hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                    >
-                                        <CheckCircle2 size={16} /> Terima / Approve
-                                    </button>
+                                            <div className="grid grid-cols-2 gap-4 mt-8 pt-6 border-t border-slate-100">
+                                                <button 
+                                                    disabled={isProcessing}
+                                                    onClick={() => handleAction(selectedItem, 'REVISION')}
+                                                    className="py-4 px-4 bg-amber-500 text-white rounded-2xl font-bold text-[10px] uppercase tracking-widest hover:bg-amber-600 shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                                >
+                                                    <Clock size={16} /> Perlu Perbaikan
+                                                </button>
+                                                <button 
+                                                    disabled={isProcessing}
+                                                    onClick={() => handleAction(selectedItem, 'APPROVED')}
+                                                    className="py-4 px-4 bg-emerald-600 text-white rounded-2xl font-bold text-[10px] uppercase tracking-widest hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                                >
+                                                    <CheckCircle2 size={16} /> Terima / Approve
+                                                </button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="mt-8 pt-6 border-t border-slate-100 text-center">
+                                            <span className={cn(
+                                                "text-xs font-black uppercase px-4 py-2 rounded-xl italic",
+                                                selectedItem.status === 'APPROVED' ? "bg-emerald-100 text-emerald-700" :
+                                                selectedItem.status === 'REVISION' ? "bg-amber-100 text-amber-700" :
+                                                "bg-rose-100 text-rose-700"
+                                            )}>
+                                                SUDAH DIPROSES: {selectedItem.status}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             </motion.div>
                         ) : (
