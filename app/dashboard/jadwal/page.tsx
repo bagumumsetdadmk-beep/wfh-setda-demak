@@ -48,6 +48,7 @@ export default function JadwalPage() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [searchPegawai, setSearchPegawai] = useState('');
   
   // Form State
   const [formData, setFormData] = useState({
@@ -169,6 +170,7 @@ export default function JadwalPage() {
               status: 'CONFIRMED'
           });
       }
+      setSearchPegawai('');
       setShowModal(true);
   };
 
@@ -343,18 +345,58 @@ export default function JadwalPage() {
                       </div>
                       <form onSubmit={handleSave} className="p-6 space-y-4">
                           {!formData.id && (
-                              <div>
-                                  <label className="block text-xs font-bold text-slate-700 tracking-tight mb-1.5">Pegawai</label>
-                                  <select 
-                                      required
-                                      value={formData.user_id}
-                                      onChange={(e) => setFormData({...formData, user_id: e.target.value})}
-                                      className="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-700"
-                                  >
-                                      {profiles.map(p => (
-                                          <option key={p.id} value={p.id}>{p.nama_lengkap} - {p.nip}</option>
-                                      ))}
-                                  </select>
+                              <div className="space-y-2">
+                                  <label className="block text-xs font-bold text-slate-700 tracking-tight">Pegawai</label>
+                                  <div className="relative mb-2">
+                                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                      <input 
+                                          type="text"
+                                          placeholder="Cari Nama / NIP..."
+                                          value={searchPegawai}
+                                          onChange={(e) => setSearchPegawai(e.target.value)}
+                                          className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl pl-9 pr-4 py-2 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                      />
+                                  </div>
+                                  <div className="max-h-[160px] overflow-y-auto border border-slate-100 rounded-xl divide-y divide-slate-50 custom-scrollbar">
+                                      {profiles
+                                          .filter(p => 
+                                              p.nama_lengkap.toLowerCase().includes(searchPegawai.toLowerCase()) || 
+                                              p.nip.includes(searchPegawai)
+                                          )
+                                          .map(p => (
+                                              <button
+                                                  key={p.id}
+                                                  type="button"
+                                                  onClick={() => setFormData({...formData, user_id: p.id})}
+                                                  className={cn(
+                                                      "w-full text-left px-4 py-2.5 transition-colors flex items-center justify-between group",
+                                                      formData.user_id === p.id ? "bg-indigo-50" : "hover:bg-slate-50"
+                                                  )}
+                                              >
+                                                  <div>
+                                                      <p className={cn(
+                                                          "text-xs font-bold leading-none mb-1",
+                                                          formData.user_id === p.id ? "text-indigo-700" : "text-slate-800"
+                                                      )}>
+                                                          {p.nama_lengkap}
+                                                      </p>
+                                                      <p className="text-[10px] text-slate-500">NIP. {p.nip}</p>
+                                                  </div>
+                                                  {formData.user_id === p.id && (
+                                                      <div className="w-4 h-4 rounded-full bg-indigo-600 flex items-center justify-center">
+                                                          <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                                                      </div>
+                                                  )}
+                                              </button>
+                                          ))
+                                      }
+                                      {profiles.filter(p => 
+                                          p.nama_lengkap.toLowerCase().includes(searchPegawai.toLowerCase()) || 
+                                          p.nip.includes(searchPegawai)
+                                      ).length === 0 && (
+                                          <div className="p-4 text-center text-[10px] text-slate-400 font-medium">Pegawai tidak ditemukan</div>
+                                      )}
+                                  </div>
                               </div>
                           )}
 
