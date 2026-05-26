@@ -104,8 +104,8 @@ export default function LaporanBKPSDMPage() {
           .from('attendance')
           .select('*', { count: 'exact', head: true })
           .or('tipe.eq.MASUK,type.eq.MASUK')
-          .gte('waktu_absen', `${startStr}T00:00:00Z`)
-          .lte('waktu_absen', `${endStr}T23:59:59Z`);
+          .gte('waktu_absen', `${startStr}T00:00:00+07:00`)
+          .lte('waktu_absen', `${endStr}T23:59:59+07:00`);
 
         const wfhValid = Math.min(validCount || 0, wfhScheduled);
         const percentage = wfhScheduled > 0 ? (wfhValid / wfhScheduled) * 100 : 0;

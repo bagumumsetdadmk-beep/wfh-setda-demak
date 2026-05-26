@@ -56,8 +56,8 @@ export default function LaporanKerjaPage() {
   const fetchContext = async () => {
     try {
       const today = new Date().toLocaleDateString('en-CA');
-      const startOfDay = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
-      const endOfDay = new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
+      const startOfDay = `${today}T00:00:00+07:00`;
+      const endOfDay = `${today}T23:59:59+07:00`;
       
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;

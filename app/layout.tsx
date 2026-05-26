@@ -15,6 +15,9 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   title: 'E-WFH Setda Demak',
   description: 'Sistem Informasi Work From Home ASN Sekretariat Daerah Demak',
+  icons: {
+    icon: '/logo.png',
+  },
 };
 
 export default function RootLayout({

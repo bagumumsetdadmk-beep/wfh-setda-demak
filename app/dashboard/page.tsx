@@ -33,6 +33,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<any>({});
   const [chartData, setChartData] = useState<any[]>([]);
+  const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('en-CA'));
   const router = useRouter();
 
   useEffect(() => {
@@ -67,12 +68,10 @@ export default function DashboardPage() {
       }
 
       // Fetch dashboard numeric data based on role
-      const now = new Date();
-      const today = new Date().toLocaleDateString('en-CA');
-      
-      // Use local ISO format for start/end of day to match Supabase TIMESTAMPTZ correctly
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
-      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+      const dateObj = new Date(selectedDate);
+      const today = selectedDate;
+      const startOfDay = `${selectedDate}T00:00:00+07:00`;
+      const endOfDay = `${selectedDate}T23:59:59+07:00`;
 
       const dataStore: any = {};
 
@@ -82,7 +81,7 @@ export default function DashboardPage() {
           supabase.from('wfh_schedules').select('*').eq('user_id', profile.id).eq('tanggal', today),
           supabase.from('attendance').select('*').eq('user_id', profile.id).gte('waktu_absen', startOfDay).lte('waktu_absen', endOfDay),
           supabase.from('work_reports').select('*').eq('user_id', profile.id).eq('tanggal', today),
-          supabase.from('attendance').select('*, profiles!attendance_user_id_fkey(nama_lengkap)').eq('user_id', profile.id).order('waktu_absen', { ascending: false }).limit(5)
+          supabase.from('attendance').select('*, profiles!attendance_user_id_fkey(nama_lengkap)').eq('user_id', profile.id).gte('waktu_absen', startOfDay).lte('waktu_absen', endOfDay).order('waktu_absen', { ascending: false })
         ]);
 
         const activeWfh = (wfhRes.data || []).find(w => w.status === 'APPROVED' || w.status === 'CONFIRMED' || w.status === 'DONE');
@@ -108,7 +107,7 @@ export default function DashboardPage() {
         let absenQuery = supabase.from('attendance').select('*, profiles!attendance_user_id_fkey!inner(unit_kerja)', { count: 'exact' }).or('tipe.eq.MASUK,type.eq.MASUK').gte('waktu_absen', startOfDay).lte('waktu_absen', endOfDay);
         let reportRencanaQuery = supabase.from('work_reports').select('*, profiles!work_reports_user_id_fkey!inner(unit_kerja)', { count: 'exact' }).eq('tanggal', today).eq('tipe', 'RENCANA');
         let reportHasilQuery = supabase.from('work_reports').select('*, profiles!work_reports_user_id_fkey!inner(unit_kerja)', { count: 'exact' }).eq('tanggal', today).eq('tipe', 'HASIL');
-        let activityQuery = supabase.from('attendance').select('*, profiles!attendance_user_id_fkey!inner(nama_lengkap, unit_kerja)').order('waktu_absen', { ascending: false }).limit(5);
+        let activityQuery = supabase.from('attendance').select('*, profiles!attendance_user_id_fkey!inner(nama_lengkap, unit_kerja)').gte('waktu_absen', startOfDay).lte('waktu_absen', endOfDay).order('waktu_absen', { ascending: false });
 
         if (!isAdmin && unitKerja) {
             wfhQuery = wfhQuery.eq('profiles.unit_kerja', unitKerja);
@@ -136,11 +135,11 @@ export default function DashboardPage() {
       const weekDays = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum'];
       const dynamicChartData = weekDays.map(day => ({ name: day, wfh: 0, absensi: 0 }));
       
-      // Calculate start of current week (Monday)
-      const currentDay = now.getDay();
+      // Calculate start of current week (Monday) based on selected date
+      const currentDay = dateObj.getDay();
       const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay;
-      const mondayDate = new Date(now);
-      mondayDate.setDate(now.getDate() + diffToMonday);
+      const mondayDate = new Date(dateObj);
+      mondayDate.setDate(dateObj.getDate() + diffToMonday);
       mondayDate.setHours(0, 0, 0, 0);
       const startOfWeekStr = mondayDate.toISOString();
 
@@ -183,7 +182,7 @@ export default function DashboardPage() {
     };
     
     fetchProfileAndData();
-  }, [router]);
+  }, [router, selectedDate]);
 
   if (loading) {
     return (
@@ -200,19 +199,36 @@ export default function DashboardPage() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight leading-none mb-1">
-            {userProfile?.role === 'PEGAWAI' ? `Selamat Datang, ${userProfile?.nama_lengkap}` : 
-             userProfile?.role === 'ATASAN' ? `Dashboard Monitoring - ${userProfile?.nama_lengkap}` : 
-             'Beranda Dashboard Administrator'}
-          </h2>
-          <div className="flex items-center gap-2">
-            <p className="text-xs text-slate-500 font-medium">Pemantauan Work From Home (WFH) - {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
-            {userProfile?.unit_kerja && (
-              <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full uppercase tracking-tight">
-                {userProfile.unit_kerja}
-              </span>
-            )}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight leading-none mb-1">
+              {userProfile?.role === 'PEGAWAI' ? `Selamat Datang, ${userProfile?.nama_lengkap}` : 
+               userProfile?.role === 'ATASAN' ? `Dashboard Monitoring - ${userProfile?.nama_lengkap}` : 
+               'Beranda Dashboard Administrator'}
+            </h2>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-slate-500 font-medium">Pemantauan Work From Home (WFH) - {new Date(selectedDate).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+              {userProfile?.unit_kerja && (
+                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full uppercase tracking-tight">
+                  {userProfile.unit_kerja}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-sm self-start md:self-center">
+            <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
+              <CalendarIcon size={16} />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-1">Filter Tanggal</p>
+              <input 
+                type="date" 
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="text-xs font-black text-slate-700 outline-none cursor-pointer bg-transparent"
+              />
+            </div>
           </div>
         </div>
 
@@ -383,10 +399,10 @@ export default function DashboardPage() {
           </div>
 
           {/* Activity Feed */}
-          <div className="md:col-span-4 md:row-span-4 dashboard-card flex flex-col">
+          <div className="md:col-span-4 md:row-span-4 dashboard-card flex flex-col h-full">
              <h4 className="text-sm font-bold text-slate-800 mb-6 tracking-tight">Aktivitas Terkini {isPegawai ? 'Anda' : ''}</h4>
-              <div className="space-y-5 flex-1 overflow-y-auto pr-1">
-                {dashboardData.activities?.slice(0, 4).map((act: any, i: number) => (
+              <div className="space-y-5 flex-1 overflow-y-auto pr-1 max-h-[600px] custom-scrollbar">
+                {dashboardData.activities?.map((act: any, i: number) => (
                   <div key={i} className="flex gap-4 items-start p-3 bg-slate-50 rounded-xl border border-slate-100/50">
                     <div className={cn(
                       "w-2 h-2 rounded-full mt-2 shrink-0",

@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { 
     Clock, 
@@ -37,13 +37,14 @@ interface ApprovalItem {
 export default function ApprovalPage() {
   const [filter, setFilter] = useState<ApprovalType | 'ALL'>('ALL');
   const [items, setItems] = useState<ApprovalItem[]>([]);
+  const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [selectedItem, setSelectedItem] = useState<ApprovalItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [catatan, setCatatan] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const fetchApprovals = async () => {
+  const fetchApprovals = useCallback(async () => {
     setIsLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -54,12 +55,18 @@ export default function ApprovalPage() {
       setIsAdmin(adminStatus);
       const unitKerja = profileData?.unit_kerja;
 
+      const startOfDay = `${selectedDate}T00:00:00+07:00`;
+      const endOfDay = `${selectedDate}T23:59:59+07:00`;
+
       let attendanceQuery = supabase.from('attendance')
         .select('*, profiles!attendance_user_id_fkey!inner(id, nama_lengkap, nip, unit_kerja)')
+        .gte('waktu_absen', startOfDay)
+        .lte('waktu_absen', endOfDay)
         .order('waktu_absen', { ascending: false });
 
       let reportQuery = supabase.from('work_reports')
         .select('*, profiles!work_reports_user_id_fkey!inner(id, nama_lengkap, nip, unit_kerja)')
+        .eq('tanggal', selectedDate)
         .order('created_at', { ascending: false });
 
       if (!adminStatus && unitKerja) {
@@ -121,7 +128,7 @@ export default function ApprovalPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedDate]);
 
   useEffect(() => {
     let mounted = true;
@@ -138,7 +145,7 @@ export default function ApprovalPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [selectedDate, fetchApprovals]);
 
   const handleAction = async (item: ApprovalItem, status: 'APPROVED' | 'REVISION' | 'REJECTED') => {
       setIsProcessing(true);
@@ -188,27 +195,39 @@ export default function ApprovalPage() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 text-slate-800">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-slate-800">
             <div>
                  <div className="flex items-center gap-3 mb-2">
                     <h2 className="text-3xl font-display font-black tracking-tight leading-none italic uppercase">PERSETUJUAN</h2>
                     <span className="bg-blue-600 text-white text-[10px] font-black px-2 py-1 rounded-lg italic">{items.length} ANTRIAN</span>
                 </div>
-                <p className="text-slate-500 font-medium">Validasi kehadiran dan capaian kinerja ASN di bawah koordinasi Anda.</p>
+                <p className="text-slate-500 font-medium text-xs">Validasi kehadiran dan capaian kinerja ASN di bawah koordinasi Anda.</p>
             </div>
-            <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-                {(['ALL', 'ABSENSI', 'RENCANA', 'HASIL'] as const).map((f) => (
-                    <button 
-                        key={f}
-                        onClick={() => setFilter(f)}
-                        className={cn(
-                            "px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
-                            filter === f ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-400 hover:text-slate-600"
-                        )}
-                    >
-                        {f}
-                    </button>
-                ))}
+            
+            <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm transition-all focus-within:ring-2 focus-within:ring-indigo-500/20">
+                    <input 
+                        type="date" 
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        className="text-[10px] font-black text-slate-700 outline-none cursor-pointer uppercase tracking-widest bg-transparent"
+                    />
+                </div>
+
+                <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                    {(['ALL', 'ABSENSI', 'RENCANA', 'HASIL'] as const).map((f) => (
+                        <button 
+                            key={f}
+                            onClick={() => setFilter(f)}
+                            className={cn(
+                                "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                                filter === f ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-400 hover:text-slate-600"
+                            )}
+                        >
+                            {f}
+                        </button>
+                    ))}
+                </div>
             </div>
         </div>
 
