@@ -99,7 +99,11 @@ export default function ApprovalPage() {
             date: new Date(a.waktu_absen).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
             time: new Date(a.waktu_absen).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
             status: a.status || 'PENDING',
-            data: { photo: a.foto_url || a.photo_url, loc: a.geotag?.address || `Lat: ${a.latitude}, Lng: ${a.longitude}` },
+            data: { 
+              photo: a.foto_url || a.photo_url, 
+              loc: a.geotag?.address || `Lat: ${a.latitude}, Lng: ${a.longitude}`,
+              catatan: a.catatan
+            },
             originalTable: 'attendance'
           };
       });
@@ -117,7 +121,11 @@ export default function ApprovalPage() {
             date: new Date(r.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
             time: new Date(r.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
             status: r.status || r.status_approval || 'PENDING',
-            data: { detail: r.konten || r.content, lampiran: r.lampiran },
+            data: { 
+              detail: r.konten || r.content, 
+              lampiran: r.lampiran,
+              catatan_atasan: r.catatan_atasan || r.catatan
+            },
             originalTable: 'work_reports'
           };
       });
@@ -271,7 +279,12 @@ export default function ApprovalPage() {
                                                     item.status === 'REVISION' ? "bg-amber-100 text-amber-600" :
                                                     item.status === 'REJECTED' ? "bg-rose-100 text-rose-600" :
                                                     "bg-slate-100 text-slate-500"
-                                                )}>{item.status}</span>
+                                                )}>{item.status === 'PENDING' ? 'MENUNGGU' : item.status}</span>
+                                                {item.status === 'PENDING' && (item.originalTable === 'attendance' ? item.data.catatan : item.data.catatan_atasan) && (
+                                                    <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-sky-100 text-sky-600 italic animate-pulse">
+                                                        PERBAIKAN
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -315,7 +328,12 @@ export default function ApprovalPage() {
                                                 selectedItem.status === 'REVISION' ? "bg-amber-100 text-amber-600" :
                                                 selectedItem.status === 'REJECTED' ? "bg-rose-100 text-rose-600" :
                                                 "bg-slate-100 text-slate-500"
-                                            )}>{selectedItem.status}</span>
+                                            )}>{selectedItem.status === 'PENDING' ? 'MENUNGGU' : selectedItem.status}</span>
+                                            {selectedItem.status === 'PENDING' && (selectedItem.originalTable === 'attendance' ? selectedItem.data.catatan : selectedItem.data.catatan_atasan) && (
+                                                <span className="text-[9px] font-black px-2 py-1 rounded bg-sky-100 text-sky-600 tracking-widest uppercase italic animate-pulse">
+                                                    PERBAIKAN / REVISI
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3">
@@ -373,7 +391,7 @@ export default function ApprovalPage() {
                                                         selectedItem.status === 'REVISION' ? "bg-amber-500 text-white" :
                                                         "bg-rose-500 text-white"
                                                     )}>
-                                                        MODE ADMIN: STATUS SAAT INI {selectedItem.status}
+                                                        MODE ADMIN: STATUS SAAT INI {selectedItem.status === 'PENDING' ? 'MENUNGGU' : selectedItem.status}
                                                     </span>
                                                 </div>
                                             )}

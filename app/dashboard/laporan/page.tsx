@@ -32,6 +32,9 @@ export default function LaporanKerjaPage() {
   const [todaySchedule, setTodaySchedule] = useState<any>(null);
   const [notification, setNotification] = useState<{ type: 'ERROR' | 'SUCCESS' | 'WARNING'; message: string; submessage?: string } | null>(null);
 
+  const currentEditingReport = reports.find(r => r.id === editingId);
+  const isEditingRevision = !!(currentEditingReport && (currentEditingReport.status === 'REVISION' || currentEditingReport.status_approval === 'REVISION'));
+
   const fetchReports = async () => {
     setIsLoading(true);
     try {
@@ -186,6 +189,7 @@ export default function LaporanKerjaPage() {
             lampiran: activeTab === 'HASIL' ? lampiran : null,
             status: 'PENDING',
             status_approval: 'PENDING'
+            // We do NOT clear catatan/catatan_atasan to preserve the historical feedback for 'PERBAIKAN' tracing
           })
           .eq('id', editingId);
         
@@ -338,14 +342,31 @@ export default function LaporanKerjaPage() {
                         </div>
                     )}
 
-                    <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-3">
+                    {isEditingRevision ? (
+                      <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 flex flex-col gap-1 mb-6">
+                        <div className="flex gap-2 items-center text-amber-800">
+                          <AlertCircle size={18} className="text-amber-500 shrink-0" />
+                          <p className="text-xs font-black uppercase tracking-tight text-amber-800">Mode Perbaikan Revisi Aktif</p>
+                        </div>
+                        <p className="text-[11px] text-amber-700 font-medium leading-relaxed mt-1">
+                          Laporan <span className="font-bold">{activeTab === 'RENCANA' ? 'Rencana Harian' : 'Capaian Kinerja'}</span> Anda berstatus <span className="font-bold">REVISION</span>. Mengirim laporan sekarang akan memperbarui konten dan mengirim ulang untuk persetujuan atasan. Batas jam pengiriman ditangguhkan.
+                        </p>
+                        {(currentEditingReport?.catatan || currentEditingReport?.catatan_atasan) && (
+                          <div className="mt-2 text-[10px] bg-white/70 p-2 rounded-lg text-amber-800 border border-amber-100 italic">
+                            Catatan Atasan: &quot;{currentEditingReport.catatan || currentEditingReport.catatan_atasan}&quot;
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-3 mb-6">
                         <Clock size={20} className="text-amber-500 shrink-0" />
                         <p className="text-[10px] text-amber-700 font-bold uppercase tracking-wide leading-relaxed">
                             {activeTab === 'RENCANA' 
                               ? `Batas pengiriman maksimal 1 jam setelah absensi masuk (${todaySchedule?.shift_mulai || '-'}).` 
                               : `Hanya dapat dikirim mulai 1 jam sebelum absensi pulang hingga jam absensi pulang (${todaySchedule?.shift_selesai || '-'}).`}
                         </p>
-                    </div>
+                      </div>
+                    )}
 
                     <div className="flex gap-2">
                         {editingId && (
@@ -405,8 +426,13 @@ export default function LaporanKerjaPage() {
                                         (report.status_approval || report.status) === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : 
                                         (report.status_approval || report.status) === 'REVISION' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
                                     )}>
-                                        {(report.status_approval || report.status) || 'PENDING'}
+                                        {((report.status_approval || report.status) === 'PENDING' || !(report.status_approval || report.status)) ? 'MENUNGGU' : (report.status_approval || report.status)}
                                     </span>
+                                    {((report.status_approval || report.status) === 'PENDING' || !(report.status_approval || report.status)) && (report.catatan_atasan || report.catatan) && (
+                                        <span className="text-[8px] font-black uppercase px-2 py-1 rounded bg-sky-100 text-sky-700 animate-pulse">
+                                            PERBAIKAN
+                                        </span>
+                                    )}
                                     {((report.status_approval || report.status) === 'PENDING' || (report.status_approval || report.status) === 'REVISION' || !report.status) && (
                                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button onClick={() => handleEdit(report)} title="Edit Laporan" className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-lg"><Edit3 size={12} /></button>

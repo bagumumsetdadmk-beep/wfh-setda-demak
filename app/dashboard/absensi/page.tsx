@@ -191,80 +191,90 @@ export default function AbsensiPage() {
   const handleSubmit = async () => {
     if (!photo || !location) return;
     
-    // Schedule Validation
-    if (!todaySchedule && !isCheckingSchedule) {
-        setNotification({
-            type: 'WARNING',
-            message: 'Jadwal Tidak Ditemukan',
-            submessage: 'Anda tidak memiliki jadwal WFH yang disetujui untuk hari ini. Silakan hubungi atasan atau buat jadwal terlebih dahulu.'
-        });
-        return;
-    }
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    const revisionRecord = attendanceHistory.find(item => {
+      const itemDate = new Date(item.waktu_absen).toLocaleDateString('en-CA');
+      return itemDate === todayStr && 
+             (item.type === type || item.tipe === type) && 
+             item.status === 'REVISION';
+    });
 
-    if (todaySchedule) {
-        const now = new Date();
-        const currentTime = now.getHours() * 60 + now.getMinutes();
-        
-        // Safety check for properties
-        if (!todaySchedule.shift_mulai || !todaySchedule.shift_selesai) {
+    // Schedule Validation (Bypassed if we are correcting a revision)
+    if (!revisionRecord) {
+        if (!todaySchedule && !isCheckingSchedule) {
             setNotification({
-                type: 'ERROR',
-                message: 'Data Jadwal Tidak Valid',
-                submessage: 'Data jam masuk atau pulang pada jadwal Anda tidak terbaca dengan benar. Hubungi admin.'
+                type: 'WARNING',
+                message: 'Jadwal Tidak Ditemukan',
+                submessage: 'Anda tidak memiliki jadwal WFH yang disetujui untuk hari ini. Silakan hubungi atasan atau buat jadwal terlebih dahulu.'
             });
             return;
         }
 
-        const [hMasuk, mMasuk] = String(todaySchedule.shift_mulai).split(':').map(Number);
-        const [hPulang, mPulang] = String(todaySchedule.shift_selesai).split(':').map(Number);
-        
-        if (isNaN(hMasuk) || isNaN(mMasuk) || isNaN(hPulang) || isNaN(mPulang)) {
-            setNotification({
-                type: 'ERROR',
-                message: 'Format Jam Salah',
-                submessage: 'Format jam pada jadwal Anda tidak valid (harus HH:mm).'
-            });
-            return;
-        }
-
-        let timeMasuk = hMasuk * 60 + mMasuk;
-        let timePulang = hPulang * 60 + mPulang;
-
-        if (timePulang < timeMasuk) {
-            timePulang += 1440; // Handle shift lewat tengah malam
-        }
-
-        let testTime = currentTime;
-        // Jika shift lewat tengah malam dan waktu sekarang adalah pagi hari, tambahkan 24 jam
-        if (timePulang > 1440 && currentTime < (timePulang - 1440 + 180)) {
-            testTime += 1440;
-        }
-
-        if (type === 'MASUK') {
-            const startWindow = timeMasuk - 180; // 3 jam sebelum shift mulai
-            const endWindow = timeMasuk;         // Limit absensi masuk sampai batas akhir jam shift mulai
+        if (todaySchedule) {
+            const now = new Date();
+            const currentTime = now.getHours() * 60 + now.getMinutes();
             
-            if (testTime < startWindow || testTime > endWindow) {
+            // Safety check for properties
+            if (!todaySchedule.shift_mulai || !todaySchedule.shift_selesai) {
                 setNotification({
-                    type: 'WARNING',
-                    message: 'Diluar Jendela Absensi',
-                    submessage: `Absensi MASUK gagal: Anda hanya dapat absen masuk mulai 3 jam sebelum shift kerja hingga tepat pada saat shift kerja dimulai (${todaySchedule.shift_mulai}).`
+                    type: 'ERROR',
+                    message: 'Data Jadwal Tidak Valid',
+                    submessage: 'Data jam masuk atau pulang pada jadwal Anda tidak terbaca dengan benar. Hubungi admin.'
                 });
                 return;
             }
-        }
 
-        if (type === 'PULANG') {
-            const startWindow = Math.max(timeMasuk, timePulang - 180); // Jangan lebih awal dari jam masuk
-            const endWindow = timePulang + 180;   // 3 jam setelah shift selesai
+            const [hMasuk, mMasuk] = String(todaySchedule.shift_mulai).split(':').map(Number);
+            const [hPulang, mPulang] = String(todaySchedule.shift_selesai).split(':').map(Number);
             
-            if (testTime < startWindow || testTime > endWindow) {
+            if (isNaN(hMasuk) || isNaN(mMasuk) || isNaN(hPulang) || isNaN(mPulang)) {
                 setNotification({
-                    type: 'WARNING',
-                    message: 'Diluar Jendela Absensi',
-                    submessage: `Absensi PULANG gagal: Anda hanya dapat absen pulang hingga maksimal 3 jam setelah jam shift pulang (${todaySchedule.shift_selesai}).`
+                    type: 'ERROR',
+                    message: 'Format Jam Salah',
+                    submessage: 'Format jam pada jadwal Anda tidak valid (harus HH:mm).'
                 });
                 return;
+            }
+
+            let timeMasuk = hMasuk * 60 + mMasuk;
+            let timePulang = hPulang * 60 + mPulang;
+
+            if (timePulang < timeMasuk) {
+                timePulang += 1440; // Handle shift lewat tengah malam
+            }
+
+            let testTime = currentTime;
+            // Jika shift lewat tengah malam dan waktu sekarang adalah pagi hari, tambahkan 24 jam
+            if (timePulang > 1440 && currentTime < (timePulang - 1440 + 180)) {
+                testTime += 1440;
+            }
+
+            if (type === 'MASUK') {
+                const startWindow = timeMasuk - 180; // 3 jam sebelum shift mulai
+                const endWindow = timeMasuk;         // Limit absensi masuk sampai batas akhir jam shift mulai
+                
+                if (testTime < startWindow || testTime > endWindow) {
+                    setNotification({
+                        type: 'WARNING',
+                        message: 'Diluar Jendela Absensi',
+                        submessage: `Absensi MASUK gagal: Anda hanya dapat absen masuk mulai 3 jam sebelum shift kerja hingga tepat pada saat shift kerja dimulai (${todaySchedule.shift_mulai}).`
+                    });
+                    return;
+                }
+            }
+
+            if (type === 'PULANG') {
+                const startWindow = Math.max(timeMasuk, timePulang - 180); // Jangan lebih awal dari jam masuk
+                const endWindow = timePulang + 180;   // 3 jam setelah shift selesai
+                
+                if (testTime < startWindow || testTime > endWindow) {
+                    setNotification({
+                        type: 'WARNING',
+                        message: 'Diluar Jendela Absensi',
+                        submessage: `Absensi PULANG gagal: Anda hanya dapat absen pulang hingga maksimal 3 jam setelah jam shift pulang (${todaySchedule.shift_selesai}).`
+                    });
+                    return;
+                }
             }
         }
     }
@@ -276,21 +286,44 @@ export default function AbsensiPage() {
         return;
       }
 
-      const { error } = await supabase.from('attendance').insert({
-        user_id: session.user.id,
-        type: type,
-        tipe: type,
-        foto_url: photo,
-        photo_url: photo,
-        geotag: {
-          address: address,
-          lat: location.lat,
-          lng: location.lng,
-          timestamp: new Date().toISOString()
-        },
-        latitude: location.lat,
-        longitude: location.lng
-      });
+      let error = null;
+      if (revisionRecord) {
+        const { error: updateError } = await supabase
+          .from('attendance')
+          .update({
+            status: 'PENDING',
+            // Keep the supervisor revision note so we can trace and show 'PERBAIKAN' status
+            foto_url: photo,
+            geotag: {
+              address: address,
+              lat: location.lat,
+              lng: location.lng,
+              timestamp: new Date().toISOString()
+            },
+            latitude: location.lat,
+            longitude: location.lng,
+            waktu_absen: new Date().toISOString() // Update to the new correct capture time
+          })
+          .eq('id', revisionRecord.id);
+        error = updateError;
+      } else {
+        const { error: insertError } = await supabase.from('attendance').insert({
+          user_id: session.user.id,
+          type: type,
+          tipe: type,
+          foto_url: photo,
+          photo_url: photo,
+          geotag: {
+            address: address,
+            lat: location.lat,
+            lng: location.lng,
+            timestamp: new Date().toISOString()
+          },
+          latitude: location.lat,
+          longitude: location.lng
+        });
+        error = insertError;
+      }
 
       if (error) {
         throw error;
@@ -303,6 +336,14 @@ export default function AbsensiPage() {
       alert('Gagal mengirim absensi: ' + err.message);
     }
   };
+
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  const activeRevision = attendanceHistory.find(item => {
+    const itemDate = new Date(item.waktu_absen).toLocaleDateString('en-CA');
+    return itemDate === todayStr && 
+           (item.type === type || item.tipe === type) && 
+           item.status === 'REVISION';
+  });
 
   return (
     <DashboardLayout>
@@ -440,12 +481,29 @@ export default function AbsensiPage() {
                   </button>
                 </div>
 
-                <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100 flex gap-3 mb-6">
-                  <ShieldCheck size={20} className="text-indigo-500 shrink-0" />
-                  <p className="text-xs text-indigo-700 leading-relaxed font-bold uppercase italic tracking-tight">
-                    Data presisi akan dikirimkan beserta waktu server ({new Date().toLocaleTimeString('id-ID')}).
-                  </p>
-                </div>
+                {activeRevision ? (
+                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 flex flex-col gap-1 mb-6">
+                    <div className="flex gap-2 items-center text-amber-800">
+                      <AlertTriangle size={18} className="text-amber-500 shrink-0" />
+                      <p className="text-xs font-black uppercase tracking-tight">Mode Perbaikan Revisi Aktif</p>
+                    </div>
+                    <p className="text-[11px] text-amber-700 font-medium leading-relaxed mt-1">
+                      Absen <span className="font-bold">{type}</span> Anda hari ini berstatus <span className="font-bold">REVISION</span>. Mengirim absensi sekarang akan memperbarui swafoto dan lokasi Anda serta mengirim ulang untuk persetujuan atasan. Batas jam masuk ditangguhkan.
+                    </p>
+                    {activeRevision.catatan && (
+                      <div className="mt-2 text-[10px] bg-white/70 p-2 rounded-lg text-amber-800 border border-amber-100 italic">
+                        Catatan Atasan: &quot;{activeRevision.catatan}&quot;
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100 flex gap-3 mb-6">
+                    <ShieldCheck size={20} className="text-indigo-500 shrink-0" />
+                    <p className="text-xs text-indigo-700 leading-relaxed font-bold uppercase italic tracking-tight">
+                      Data presisi akan dikirimkan beserta waktu server ({new Date().toLocaleTimeString('id-ID')}).
+                    </p>
+                  </div>
+                )}
 
                 <button 
                   disabled={!photo || !location}
@@ -496,8 +554,13 @@ export default function AbsensiPage() {
                         item.status === 'APPROVED' ? 'bg-emerald-500/90' : 
                         item.status === 'REVISION' ? 'bg-amber-500/90' : 'bg-slate-700/90'
                       )}>
-                        {item.status || 'PENDING'}
+                        {item.status === 'PENDING' || !item.status ? 'MENUNGGU' : item.status}
                       </span>
+                      {item.status === 'PENDING' && item.catatan && (
+                        <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded shadow-sm backdrop-blur-md bg-sky-500/90 text-white animate-pulse">
+                          PERBAIKAN
+                        </span>
+                      )}
                     </div>
                     <div className="absolute bottom-0 left-0 w-full p-2 bg-gradient-to-t from-black/60 to-transparent">
                       <p className="text-[10px] text-white font-bold tracking-widest">
