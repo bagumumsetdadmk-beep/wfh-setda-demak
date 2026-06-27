@@ -287,13 +287,44 @@ export default function AbsensiPage() {
       }
 
       let error = null;
+      let finalPhotoUrl = photo;
+
+      if (photo.startsWith('data:image')) {
+        try {
+          const res = await fetch(photo);
+          const blob = await res.blob();
+          const fileName = `${session.user.id}_${Date.now()}.jpg`;
+          
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('attendance-photos')
+            .upload(fileName, blob, {
+              contentType: 'image/jpeg',
+              upsert: false
+            });
+            
+          if (uploadError) {
+             throw uploadError;
+          }
+          
+          const { data: publicUrlData } = supabase.storage
+            .from('attendance-photos')
+            .getPublicUrl(fileName);
+            
+          finalPhotoUrl = publicUrlData.publicUrl;
+        } catch (uploadErr: any) {
+          console.error("Failed to upload to storage", uploadErr);
+          alert('Gagal mengupload foto: ' + uploadErr.message);
+          return;
+        }
+      }
+
       if (revisionRecord) {
         const { error: updateError } = await supabase
           .from('attendance')
           .update({
             status: 'PENDING',
             // Keep the supervisor revision note so we can trace and show 'PERBAIKAN' status
-            foto_url: photo,
+            foto_url: finalPhotoUrl,
             geotag: {
               address: address,
               lat: location.lat,
@@ -311,8 +342,8 @@ export default function AbsensiPage() {
           user_id: session.user.id,
           type: type,
           tipe: type,
-          foto_url: photo,
-          photo_url: photo,
+          foto_url: finalPhotoUrl,
+          photo_url: finalPhotoUrl,
           geotag: {
             address: address,
             lat: location.lat,
