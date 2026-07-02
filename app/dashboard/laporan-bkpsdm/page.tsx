@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import DashboardLayout from '@/components/DashboardLayout';
 import { 
   FileText, 
   Printer, 
@@ -137,7 +138,8 @@ export default function LaporanBKPSDMPage() {
   };
 
   return (
-    <div className="space-y-8 pb-20">
+    <DashboardLayout>
+      <div className="space-y-8 pb-20">
       {/* Header UI */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -151,6 +153,182 @@ export default function LaporanBKPSDMPage() {
             title="Refresh Data"
           >
             <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                setLoading(true);
+                const startStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-01`;
+                const endStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${new Date(selectedYear, selectedMonth + 1, 0).getDate()}`;
+                
+                const { data, error } = await supabase
+                  .from('attendance')
+                  .select(`
+                    id,
+                    waktu_absen,
+                    tipe,
+                    type,
+                    foto_url,
+                    photo_url,
+                    status,
+                    geotag,
+                    profiles:user_id ( nama_lengkap, nip )
+                  `)
+                  .or('tipe.eq.MASUK,type.eq.MASUK,tipe.eq.PULANG,type.eq.PULANG')
+                  .gte('waktu_absen', `${startStr}T00:00:00+07:00`)
+                  .lte('waktu_absen', `${endStr}T23:59:59+07:00`)
+                  .order('waktu_absen', { ascending: true });
+
+                if (error) throw error;
+
+                if (!data || data.length === 0) {
+                  alert('Tidak ada data absensi pada bulan ini.');
+                  return;
+                }
+
+                // Grouping data by date and type
+                const groupedData: Record<string, { masuk: any[], pulang: any[] }> = {};
+
+                data.forEach((item: any) => {
+                  const photo = item.foto_url || item.photo_url;
+                  if (!photo) return;
+                  
+                  const dateStr = new Date(item.waktu_absen).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
+                  const isPulang = item.tipe === 'PULANG' || item.type === 'PULANG';
+                  
+                  if (!groupedData[dateStr]) {
+                    groupedData[dateStr] = { masuk: [], pulang: [] };
+                  }
+                  
+                  if (isPulang) {
+                    groupedData[dateStr].pulang.push(item);
+                  } else {
+                    groupedData[dateStr].masuk.push(item);
+                  }
+                });
+
+                let htmlContent = `
+                  <!DOCTYPE html>
+                  <html>
+                  <head>
+                    <title>Data Foto Absensi WFH - ${MONTHS[selectedMonth]} ${selectedYear}</title>
+                    <style>
+                      body { font-family: sans-serif; padding: 20px; background: #f1f5f9; }
+                      h1 { text-align: center; color: #0f172a; margin-bottom: 30px; }
+                      .date-section { margin-bottom: 40px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+                      .date-title { font-size: 20px; color: #334155; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 20px; margin-top: 0; }
+                      .type-section { margin-bottom: 20px; }
+                      .type-title { font-size: 16px; color: #475569; margin-bottom: 15px; display: inline-block; padding: 4px 12px; border-radius: 6px; background: #f8fafc; border: 1px solid #e2e8f0; }
+                      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+                      .card { background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
+                      .card img { width: 100%; height: 200px; object-fit: cover; border-radius: 4px; margin-bottom: 10px; border: 1px solid #cbd5e1; }
+                      .card p { margin: 5px 0; font-size: 12px; color: #475569; }
+                      .card .name { font-weight: bold; font-size: 14px; color: #0f172a; }
+                      .card .geotag { font-size: 11px; color: #64748b; margin-top: 8px; border-top: 1px dashed #cbd5e1; padding-top: 8px; word-break: break-word; }
+                      .empty-msg { color: #94a3b8; font-size: 14px; font-style: italic; }
+                    </style>
+                  </head>
+                  <body>
+                    <h1>Data Foto Absensi WFH - ${MONTHS[selectedMonth]} ${selectedYear}</h1>
+                `;
+
+                Object.keys(groupedData).forEach(date => {
+                    const dayData = groupedData[date];
+                    
+                    htmlContent += `<div class="date-section">`;
+                    htmlContent += `<h2 class="date-title">${date}</h2>`;
+                    
+                    // Absen Masuk
+                    htmlContent += `<div class="type-section">`;
+                    htmlContent += `<h3 class="type-title" style="color: #4f46e5; border-color: #c7d2fe; background: #eef2ff;">ABSEN MASUK</h3>`;
+                    
+                    if (dayData.masuk.length > 0) {
+                        htmlContent += `<div class="grid">`;
+                        dayData.masuk.forEach((item: any) => {
+                            const profile = item.profiles || {};
+                            const time = new Date(item.waktu_absen).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                            const photo = item.foto_url || item.photo_url;
+                            const loc = item.geotag?.address || 'Lokasi tidak tersedia';
+                            const coords = item.geotag?.lat && item.geotag?.lng ? `${item.geotag.lat}, ${item.geotag.lng}` : '';
+                            
+                            htmlContent += `
+                              <div class="card">
+                                <img src="${photo}" alt="Foto Absen" loading="lazy" />
+                                <p class="name">${profile.nama_lengkap || 'Unknown'}</p>
+                                <p>NIP: ${profile.nip || '-'}</p>
+                                <p>Pukul: ${time}</p>
+                                <p>Status: ${item.status || 'PENDING'}</p>
+                                <p class="geotag">📍 ${loc}</p>
+                                ${coords ? `<p class="geotag" style="margin-top: 4px; border-top: none; padding-top: 0;"><a href="https://maps.google.com/?q=${coords}" target="_blank" style="color: #2563eb; text-decoration: none;">🌍 ${coords}</a></p>` : ''}
+                              </div>
+                            `;
+                        });
+                        htmlContent += `</div>`;
+                    } else {
+                        htmlContent += `<p class="empty-msg">Tidak ada data absen masuk.</p>`;
+                    }
+                    htmlContent += `</div>`; // type-section masuk
+                    
+                    // Absen Pulang
+                    htmlContent += `<div class="type-section">`;
+                    htmlContent += `<h3 class="type-title" style="color: #0ea5e9; border-color: #bae6fd; background: #e0f2fe;">ABSEN PULANG</h3>`;
+                    
+                    if (dayData.pulang.length > 0) {
+                        htmlContent += `<div class="grid">`;
+                        dayData.pulang.forEach((item: any) => {
+                            const profile = item.profiles || {};
+                            const time = new Date(item.waktu_absen).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                            const photo = item.foto_url || item.photo_url;
+                            const loc = item.geotag?.address || 'Lokasi tidak tersedia';
+                            const coords = item.geotag?.lat && item.geotag?.lng ? `${item.geotag.lat}, ${item.geotag.lng}` : '';
+                            
+                            htmlContent += `
+                              <div class="card">
+                                <img src="${photo}" alt="Foto Absen" loading="lazy" />
+                                <p class="name">${profile.nama_lengkap || 'Unknown'}</p>
+                                <p>NIP: ${profile.nip || '-'}</p>
+                                <p>Pukul: ${time}</p>
+                                <p>Status: ${item.status || 'PENDING'}</p>
+                                <p class="geotag">📍 ${loc}</p>
+                                ${coords ? `<p class="geotag" style="margin-top: 4px; border-top: none; padding-top: 0;"><a href="https://maps.google.com/?q=${coords}" target="_blank" style="color: #2563eb; text-decoration: none;">🌍 ${coords}</a></p>` : ''}
+                              </div>
+                            `;
+                        });
+                        htmlContent += `</div>`;
+                    } else {
+                        htmlContent += `<p class="empty-msg">Tidak ada data absen pulang.</p>`;
+                    }
+                    htmlContent += `</div>`; // type-section pulang
+                    
+                    htmlContent += `</div>`; // date-section
+                });
+
+                htmlContent += `
+                  </body>
+                  </html>
+                `;
+
+                const blob = new Blob([htmlContent], { type: 'text/html' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Foto_Absensi_WFH_${MONTHS[selectedMonth]}_${selectedYear}.html`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+
+              } catch (err: any) {
+                console.error(err);
+                alert('Gagal mengekspor data foto: ' + err.message);
+              } finally {
+                setLoading(false);
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 font-bold text-sm"
+          >
+            <Printer size={18} />
+            <span className="hidden sm:inline">Export Foto (HTML)</span>
           </button>
           <button 
             onClick={handlePrint}
@@ -481,11 +659,12 @@ export default function LaporanBKPSDMPage() {
             border: none !important;
             box-shadow: none !important;
           }
-          .dashboard-card, header, .nav-container, button {
+          .dashboard-card, header, .nav-container, button, nav, aside {
             display: none !important;
           }
         }
       `}</style>
     </div>
+    </DashboardLayout>
   );
 }
