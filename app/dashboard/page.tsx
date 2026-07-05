@@ -132,47 +132,48 @@ export default function DashboardPage() {
         dataStore.activities = activityRes.data || [];
       }
 
-      const weekDays = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum'];
-      const dynamicChartData = weekDays.map(day => ({ name: day, wfh: 0, absensi: 0 }));
+      const weekLabels = ['Minggu I', 'Minggu II', 'Minggu III', 'Minggu IV', 'Minggu V'];
+      const dynamicChartData = weekLabels.map(week => ({ name: week, wfh: 0, absensi: 0 }));
       
-      // Calculate start of current week (Monday) based on selected date
-      const currentDay = dateObj.getDay();
-      const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay;
-      const mondayDate = new Date(dateObj);
-      mondayDate.setDate(dateObj.getDate() + diffToMonday);
-      mondayDate.setHours(0, 0, 0, 0);
-      const startOfWeekStr = mondayDate.toISOString();
+      const startOfMonth = new Date(dateObj.getFullYear(), dateObj.getMonth(), 1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      const startOfMonthStr = startOfMonth.toISOString();
+      const startOfMonthDateStr = startOfMonthStr.split('T')[0];
 
       if (profile.role === 'PEGAWAI') {
-        const [wfhWeekRes, absenWeekRes] = await Promise.all([
-          supabase.from('wfh_schedules').select('tanggal').eq('user_id', profile.id).gte('tanggal', startOfWeekStr.split('T')[0]),
-          supabase.from('attendance').select('waktu_absen, tipe, type').eq('user_id', profile.id).gte('waktu_absen', startOfWeekStr)
+        const [wfhMonthRes, absenMonthRes] = await Promise.all([
+          supabase.from('wfh_schedules').select('tanggal').eq('user_id', profile.id).gte('tanggal', startOfMonthDateStr),
+          supabase.from('attendance').select('waktu_absen, tipe, type').eq('user_id', profile.id).gte('waktu_absen', startOfMonthStr)
         ]);
 
-        (wfhWeekRes.data || []).forEach(w => {
-          const wDay = new Date(w.tanggal).getDay();
-          if (wDay >= 1 && wDay <= 5) dynamicChartData[wDay - 1].wfh += 10; // scale up for chart visibility
+        (wfhMonthRes.data || []).forEach(w => {
+          const d = new Date(w.tanggal).getDate();
+          const wIndex = Math.min(Math.floor((d - 1) / 7), 4);
+          dynamicChartData[wIndex].wfh += 10; // scale up for chart visibility
         });
 
-        (absenWeekRes.data || []).forEach(a => {
-          const aDay = new Date(a.waktu_absen).getDay();
-          if (aDay >= 1 && aDay <= 5 && ((a.type || a.tipe) === 'MASUK')) dynamicChartData[aDay - 1].absensi += 10;
+        (absenMonthRes.data || []).forEach(a => {
+          const d = new Date(a.waktu_absen).getDate();
+          const wIndex = Math.min(Math.floor((d - 1) / 7), 4);
+          if ((a.type || a.tipe) === 'MASUK') dynamicChartData[wIndex].absensi += 10;
         });
 
       } else {
-        const [wfhWeekRes, absenWeekRes] = await Promise.all([
-          supabase.from('wfh_schedules').select('tanggal').gte('tanggal', startOfWeekStr.split('T')[0]).neq('status', 'CANCELLED'),
-          supabase.from('attendance').select('waktu_absen, tipe, type').gte('waktu_absen', startOfWeekStr).or(`type.eq.MASUK,tipe.eq.MASUK`)
+        const [wfhMonthRes, absenMonthRes] = await Promise.all([
+          supabase.from('wfh_schedules').select('tanggal').gte('tanggal', startOfMonthDateStr).neq('status', 'CANCELLED'),
+          supabase.from('attendance').select('waktu_absen, tipe, type').gte('waktu_absen', startOfMonthStr).or(`type.eq.MASUK,tipe.eq.MASUK`)
         ]);
 
-        (wfhWeekRes.data || []).forEach(w => {
-          const wDay = new Date(w.tanggal).getDay();
-          if (wDay >= 1 && wDay <= 5) dynamicChartData[wDay - 1].wfh += 1;
+        (wfhMonthRes.data || []).forEach(w => {
+          const d = new Date(w.tanggal).getDate();
+          const wIndex = Math.min(Math.floor((d - 1) / 7), 4);
+          dynamicChartData[wIndex].wfh += 1;
         });
 
-        (absenWeekRes.data || []).forEach(a => {
-          const aDay = new Date(a.waktu_absen).getDay();
-          if (aDay >= 1 && aDay <= 5) dynamicChartData[aDay - 1].absensi += 1;
+        (absenMonthRes.data || []).forEach(a => {
+          const d = new Date(a.waktu_absen).getDate();
+          const wIndex = Math.min(Math.floor((d - 1) / 7), 4);
+          dynamicChartData[wIndex].absensi += 1;
         });
       }
 
@@ -361,10 +362,10 @@ export default function DashboardPage() {
           {/* Chart Section */}
           <div className="md:col-span-8 md:row-span-4 dashboard-card">
             <div className="flex justify-between items-center mb-6">
-              <h4 className="text-sm font-bold text-slate-800 tracking-tight">Statistik Mingguan {isPegawai ? 'Anda' : ''}</h4>
+              <h4 className="text-sm font-bold text-slate-800 tracking-tight">Statistik Bulanan {isPegawai ? 'Anda' : ''}</h4>
               <select className="bg-slate-50 border border-slate-200 text-slate-600 text-[10px] font-bold rounded-lg px-3 py-1 cursor-pointer outline-none uppercase tracking-wider">
-                <option>Minggu Ini</option>
-                <option>Minggu Lalu</option>
+                <option>Bulan Ini</option>
+                <option>Bulan Lalu</option>
               </select>
             </div>
             <div className="h-64 sm:h-80 w-full mt-4">

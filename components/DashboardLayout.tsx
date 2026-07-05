@@ -131,17 +131,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         className="hidden md:flex flex-col bg-white text-slate-600 border-r border-slate-200"
       >
         <div className="p-6 flex items-center gap-3 border-b border-slate-50">
-          <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0 shadow-lg shadow-indigo-600/20 overflow-hidden">
+          <div className="w-10 h-10 flex items-center justify-center shrink-0 overflow-hidden">
             <img 
               src="/logo-sidebar.png" 
               alt="L" 
-              className="w-full h-full object-contain p-1"
+              className="w-full h-full object-contain"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
                 const parent = e.currentTarget.parentElement;
                 if (parent) {
                   const span = document.createElement('span');
-                  span.className = "font-bold text-white";
+                  span.className = "font-bold text-slate-800";
                   span.innerText = "D";
                   parent.appendChild(span);
                 }
@@ -223,18 +223,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
               <div className="p-6 flex justify-between items-center border-b border-slate-50">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0 shadow-lg shadow-indigo-600/20 overflow-hidden">
+                  <div className="w-10 h-10 flex items-center justify-center shrink-0 overflow-hidden">
                     <img 
                       src="/logo-sidebar.png" 
                       alt="L" 
-                      className="w-full h-full object-contain p-1"
+                      className="w-full h-full object-contain"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';
                         // Add fallback UI
                         const parent = e.currentTarget.parentElement;
                         if (parent && parent.children.length === 1) {
                           const span = document.createElement('span');
-                          span.className = "font-bold text-white";
+                          span.className = "font-bold text-slate-800";
                           span.innerText = "D";
                           parent.appendChild(span);
                         }

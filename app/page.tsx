@@ -71,17 +71,17 @@ export default function LoginPage() {
 
       <div className="w-full max-w-sm relative z-10">
         <div className="text-center mb-10">
-          <div className="w-16 h-16 bg-indigo-600 rounded-2xl mx-auto mb-6 flex items-center justify-center shadow-2xl shadow-indigo-600/30 overflow-hidden">
+          <div className="w-24 h-24 mx-auto mb-6 flex items-center justify-center overflow-hidden">
             <img 
               src="/logo.png" 
               alt="Logo" 
-              className="w-full h-full object-contain p-2"
+              className="w-full h-full object-contain"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
                 const parent = e.currentTarget.parentElement;
                 if (parent) {
                   const span = document.createElement('span');
-                  span.className = "text-2xl font-display font-black text-white";
+                  span.className = "text-2xl font-display font-black text-slate-800";
                   span.innerText = "D";
                   parent.appendChild(span);
                 }

@@ -102,7 +102,7 @@ export default function AbsensiPage() {
           const lng = pos.coords.longitude;
           setLocation({ lat, lng });
           
-          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`)
             .then(res => res.json())
             .then(data => {
               if (data && data.display_name) {
@@ -118,7 +118,8 @@ export default function AbsensiPage() {
         (err) => {
           setAddress('Gagal mendeteksi lokasi. Menggunakan lokasi default Demak.');
           setLocation({ lat: -6.8943, lng: 110.6385 }); // Default Demak Koordinat
-        }
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
       );
     } else {
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -483,9 +484,22 @@ export default function AbsensiPage() {
                   </div>
                 </div>
                 
-                <div className="aspect-video bg-slate-100 rounded-2xl flex items-center justify-center border border-slate-200 overflow-hidden relative grayscale opacity-70">
-                    <MapIcon size={32} className="text-slate-300" />
-                    <span className="absolute bottom-2 right-2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 py-1 rounded backdrop-blur-sm">DEMAK GEOSPATIAL</span>
+                <div className="aspect-video bg-slate-100 rounded-2xl flex items-center justify-center border border-slate-200 overflow-hidden relative">
+                  {location ? (
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      frameBorder="0"
+                      style={{ border: 0 }}
+                      src={`https://maps.google.com/maps?q=${location.lat},${location.lng}&hl=id&z=16&output=embed`}
+                      allowFullScreen
+                    ></iframe>
+                  ) : (
+                    <>
+                      <MapIcon size={32} className="text-slate-300" />
+                      <span className="absolute bottom-2 right-2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 py-1 rounded backdrop-blur-sm">DEMAK GEOSPATIAL</span>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -570,15 +584,17 @@ export default function AbsensiPage() {
                       alt="Selfie" 
                       className="w-full h-full object-cover transition-transform group-hover:scale-105"
                     />
-                    <div className="absolute top-2 left-2">
-                      <button
-                        onClick={() => setDeleteId(item.id)}
-                        className="p-1.5 bg-red-500/90 text-white rounded shadow-sm backdrop-blur-md hover:bg-red-600 transition-colors"
-                        title="Hapus Absensi"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
+                    {item.status !== 'APPROVED' && (
+                      <div className="absolute top-2 left-2">
+                        <button
+                          onClick={() => setDeleteId(item.id)}
+                          className="p-1.5 bg-red-500/90 text-white rounded shadow-sm backdrop-blur-md hover:bg-red-600 transition-colors"
+                          title="Hapus Absensi"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    )}
                     <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
                       <span className={cn(
                         "text-[9px] font-black uppercase px-2 py-1 rounded shadow-sm backdrop-blur-md text-white",
