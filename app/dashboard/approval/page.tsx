@@ -191,6 +191,11 @@ export default function ApprovalPage() {
           setItems(items.map(i => i.id === item.id ? { ...i, status: status } : i));
           setSelectedItem(prev => prev && prev.id === item.id ? { ...prev, status: status } : prev);
           setCatatan('');
+          
+          // Dispatch custom event to notify DashboardLayout to update the badge immediately
+          if (typeof window !== 'undefined') {
+              window.dispatchEvent(new Event('approval-status-changed'));
+          }
       } catch (err: any) {
           alert('Gagal memproses: ' + err.message);
       } finally {
@@ -207,7 +212,7 @@ export default function ApprovalPage() {
             <div>
                  <div className="flex items-center gap-3 mb-2">
                     <h2 className="text-3xl font-display font-black tracking-tight leading-none italic uppercase">PERSETUJUAN</h2>
-                    <span className="bg-blue-600 text-white text-[10px] font-black px-2 py-1 rounded-lg italic">{items.length} ANTRIAN</span>
+                    <span className="bg-blue-600 text-white text-[10px] font-black px-2 py-1 rounded-lg italic">{items.filter(i => i.status === 'PENDING').length} MENUNGGU</span>
                 </div>
                 <p className="text-slate-500 font-medium text-xs">Validasi kehadiran dan capaian kinerja ASN di bawah koordinasi Anda.</p>
             </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/navigation';
@@ -40,55 +40,164 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const pathname = usePathname();
   const router = useRouter();
 
+  const fetchPendingApprovalsCount = useCallback(async (profile: Profile) => {
+    const role = (profile.role || '').toUpperCase();
+    if (role !== 'ATASAN' && role !== 'ADMIN') return;
+
+    try {
+      let attendanceQuery = supabase.from('attendance')
+        .select('status, profiles!attendance_user_id_fkey!inner(unit_kerja)')
+        .or('status.eq.PENDING,status.eq.pending,status.is.null');
+
+      let reportQuery = supabase.from('work_reports')
+        .select('status, status_approval, profiles!work_reports_user_id_fkey!inner(unit_kerja)')
+        .or('status_approval.eq.PENDING,status_approval.eq.pending,status_approval.is.null,status.eq.PENDING,status.eq.pending,status.is.null');
+
+      if (role !== 'ADMIN' && profile.unit_kerja) {
+        attendanceQuery = attendanceQuery.eq('profiles.unit_kerja', profile.unit_kerja);
+        reportQuery = reportQuery.eq('profiles.unit_kerja', profile.unit_kerja);
+      }
+
+      const [attendances, reports] = await Promise.all([
+        attendanceQuery,
+        reportQuery
+      ]);
+
+      if (attendances.error) {
+        console.error('Attendances query error:', attendances.error);
+      }
+      if (reports.error) {
+        console.error('Reports query error:', reports.error);
+      }
+
+      let pendingCount = 0;
+
+      (attendances.data || []).forEach((a: any) => {
+        const status = a.status || 'PENDING';
+        if (status.toUpperCase() === 'PENDING') {
+          pendingCount++;
+        }
+      });
+
+      (reports.data || []).forEach((r: any) => {
+        const status = r.status || r.status_approval || 'PENDING';
+        if (status.toUpperCase() === 'PENDING') {
+          pendingCount++;
+        }
+      });
+
+      console.log('Badge pending count:', pendingCount);
+
+      setPendingApprovalsCount(pendingCount);
+    } catch (err) {
+      console.error('Error fetching pending approvals count:', err);
+    }
+  }, []);
+
   useEffect(() => {
     const getProfile = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-          
-        if (data) {
-          setUserProfile(data as Profile);
-        } else {
-          // Jika profile tidak ditemukan (misal: user dibuat manual via Supabase Dashboard)
-          // Berikan fallback profile sementara agar tidak stagnan di "Loading..."
-          const email = session.user.email || '';
-          const isEmailAdmin = email.toLowerCase().includes('admin');
-          
-          const fallbackProfile: Profile = {
-            id: session.user.id,
-            nip: email.split('@')[0] || 'UNKNOWN_NIP',
-            nama_lengkap: isEmailAdmin ? 'Administrator' : email.split('@')[0],
-            role: isEmailAdmin ? 'ADMIN' : 'PEGAWAI',
-            jabatan: isEmailAdmin ? 'Sistem Admin' : 'Pegawai',
-          };
-          
-          setUserProfile(fallbackProfile);
-          
-          // Opsional: Coba insert ke tabel profiles agar sinkron
-          try {
-            const { data: newData } = await supabase
-              .from('profiles')
-              .insert(fallbackProfile)
-              .select()
-              .single();
-            if (newData) setUserProfile(newData as Profile);
-          } catch (e) {
-            console.error('Failed to auto-insert missing profile', e);
-          }
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error("Session fetch error:", sessionError);
+          router.push('/');
+          return;
         }
-      } else {
-        router.push('/');
+
+        if (session?.user) {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+            
+          let profileToUse = data as Profile;
+
+          if (!data) {
+            // Jika profile tidak ditemukan (misal: user dibuat manual via Supabase Dashboard)
+            // Berikan fallback profile sementara agar tidak stagnan di "Loading..."
+            const email = session.user.email || '';
+            const isEmailAdmin = email.toLowerCase().includes('admin');
+            
+            const fallbackProfile: Profile = {
+              id: session.user.id,
+              nip: email.split('@')[0] || 'UNKNOWN_NIP',
+              nama_lengkap: isEmailAdmin ? 'Administrator' : email.split('@')[0],
+              role: isEmailAdmin ? 'ADMIN' : 'PEGAWAI',
+              jabatan: isEmailAdmin ? 'Sistem Admin' : 'Pegawai',
+            };
+            
+            profileToUse = fallbackProfile;
+            setUserProfile(fallbackProfile);
+            
+            // Opsional: Coba insert ke tabel profiles agar sinkron
+            try {
+              const { data: newData } = await supabase
+                .from('profiles')
+                .insert(fallbackProfile)
+                .select()
+                .single();
+              if (newData) {
+                profileToUse = newData as Profile;
+                setUserProfile(newData as Profile);
+              }
+            } catch (e) {
+              console.error('Failed to auto-insert missing profile', e);
+            }
+          } else {
+             setUserProfile(data as Profile);
+          }
+
+          // Fetch pending count immediately after getting profile
+          fetchPendingApprovalsCount(profileToUse);
+
+          // Set up real-time subscription for changes in attendance and work_reports
+          const channelName = `db-changes-${session.user.id}-${Date.now()}`;
+          const channel = supabase
+            .channel(channelName)
+            .on(
+              'postgres_changes',
+              {
+                event: '*',
+                schema: 'public',
+                table: 'attendance',
+              },
+              () => fetchPendingApprovalsCount(profileToUse)
+            )
+            .on(
+              'postgres_changes',
+              {
+                event: '*',
+                schema: 'public',
+                table: 'work_reports',
+              },
+              () => fetchPendingApprovalsCount(profileToUse)
+            )
+            .subscribe();
+
+          const handleCustomEvent = () => {
+            fetchPendingApprovalsCount(profileToUse);
+          };
+          window.addEventListener('approval-status-changed', handleCustomEvent);
+
+          return () => {
+            supabase.removeChannel(channel);
+            window.removeEventListener('approval-status-changed', handleCustomEvent);
+          };
+        } else {
+          router.push('/');
+        }
+      } catch (e) {
+        console.error("Error in getProfile:", e);
       }
     };
     getProfile();
-  }, [router]);
+  }, [router, fetchPendingApprovalsCount]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -168,7 +277,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all group font-medium text-sm",
+                  "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all group font-medium text-sm relative",
                   isActive 
                     ? "bg-indigo-50 text-indigo-700" 
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
@@ -179,10 +288,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <motion.span 
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="whitespace-nowrap"
+                    className="whitespace-nowrap flex-1 flex justify-between items-center"
                   >
-                    {item.label}
+                    <span>{item.label}</span>
+                    {item.label === 'Persetujuan' && pendingApprovalsCount > 0 && (
+                      <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                        {pendingApprovalsCount}
+                      </span>
+                    )}
                   </motion.span>
+                )}
+                {!isSidebarOpen && item.label === 'Persetujuan' && pendingApprovalsCount > 0 && (
+                   <span className="absolute left-7 top-1.5 bg-rose-500 border-2 border-white text-white text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                     {pendingApprovalsCount}
+                   </span>
                 )}
               </Link>
             );
@@ -268,7 +387,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       )}
                     >
                       <item.icon size={20} className={cn("shrink-0", isActive ? "text-indigo-600" : "text-slate-400")} />
-                      <span className="whitespace-nowrap">{item.label}</span>
+                      <span className="whitespace-nowrap flex-1 flex justify-between items-center">
+                        <span>{item.label}</span>
+                        {item.label === 'Persetujuan' && pendingApprovalsCount > 0 && (
+                          <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                            {pendingApprovalsCount}
+                          </span>
+                        )}
+                      </span>
                     </Link>
                   );
                 })}
