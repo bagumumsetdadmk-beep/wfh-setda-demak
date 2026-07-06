@@ -14,7 +14,8 @@ import {
   ChevronRight,
   Menu,
   X,
-  Bell
+  Bell,
+  Printer
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -34,6 +35,7 @@ const navItems: NavItem[] = [
   { label: 'Laporan Kerja', href: '/dashboard/laporan', icon: FileText },
   { label: 'Persetujuan', href: '/dashboard/approval', icon: Bell },
   { label: 'Laporan BKPSDM', href: '/dashboard/laporan-bkpsdm', icon: FileText },
+  { label: 'Laporan WFH', href: '/dashboard/laporan-wfh', icon: Printer },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -213,8 +215,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       return !restrictedForAdmin.includes(item.label);
     }
 
-    // Atasan/Pegawai should not see Laporan BKPSDM
-    if (item.label === 'Laporan BKPSDM') return false;
+    // Atasan/Pegawai should not see Laporan BKPSDM and Laporan WFH
+    if (item.label === 'Laporan BKPSDM' || item.label === 'Laporan WFH') return false;
 
     // Atasan sees only Dashboard, Jadwal WFH, and Persetujuan
     if (userProfile.role === 'ATASAN') {

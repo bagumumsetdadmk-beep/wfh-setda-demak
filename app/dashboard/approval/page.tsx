@@ -58,35 +58,32 @@ export default function ApprovalPage() {
       const startOfDay = `${selectedDate}T00:00:00+07:00`;
       const endOfDay = `${selectedDate}T23:59:59+07:00`;
 
-      let attendanceQuery = supabase.from('attendance')
-        .select('*, profiles!attendance_user_id_fkey!inner(id, nama_lengkap, nip, unit_kerja)')
-        .gte('waktu_absen', startOfDay)
-        .lte('waktu_absen', endOfDay)
-        .order('waktu_absen', { ascending: false });
-
-      let reportQuery = supabase.from('work_reports')
-        .select('*, profiles!work_reports_user_id_fkey!inner(id, nama_lengkap, nip, unit_kerja)')
-        .eq('tanggal', selectedDate)
-        .order('created_at', { ascending: false });
+      let qAttDate = supabase.from('attendance').select('*, profiles!attendance_user_id_fkey!inner(id, nama_lengkap, nip, unit_kerja)').gte('waktu_absen', startOfDay).lte('waktu_absen', endOfDay).order('waktu_absen', { ascending: false });
+      let qAttPending = supabase.from('attendance').select('*, profiles!attendance_user_id_fkey!inner(id, nama_lengkap, nip, unit_kerja)').or('status.eq.PENDING,status.eq.pending,status.is.null').order('waktu_absen', { ascending: false });
+      
+      let qRepDate = supabase.from('work_reports').select('*, profiles!work_reports_user_id_fkey!inner(id, nama_lengkap, nip, unit_kerja)').eq('tanggal', selectedDate).order('created_at', { ascending: false });
+      let qRepPending = supabase.from('work_reports').select('*, profiles!work_reports_user_id_fkey!inner(id, nama_lengkap, nip, unit_kerja)').or('status_approval.eq.PENDING,status_approval.eq.pending,status_approval.is.null,status.eq.PENDING,status.eq.pending,status.is.null').order('created_at', { ascending: false });
 
       if (!adminStatus && unitKerja) {
-        attendanceQuery = attendanceQuery.eq('profiles.unit_kerja', unitKerja);
-        reportQuery = reportQuery.eq('profiles.unit_kerja', unitKerja);
+        qAttDate = qAttDate.eq('profiles.unit_kerja', unitKerja);
+        qAttPending = qAttPending.eq('profiles.unit_kerja', unitKerja);
+        qRepDate = qRepDate.eq('profiles.unit_kerja', unitKerja);
+        qRepPending = qRepPending.eq('profiles.unit_kerja', unitKerja);
       }
 
-      const [attendances, reports] = await Promise.all([
-        attendanceQuery,
-        reportQuery
+      const [resAttDate, resAttPending, resRepDate, resRepPending] = await Promise.all([
+        qAttDate, qAttPending, qRepDate, qRepPending
       ]);
 
-      if (attendances.error) {
-        console.error('Attendance fetch error:', attendances.error);
-      }
-      if (reports.error) {
-        console.error('Reports fetch error:', reports.error);
-      }
+      const attMap = new Map();
+      [...(resAttDate.data || []), ...(resAttPending.data || [])].forEach(a => attMap.set(a.id, a));
+      const mergedAttendances = Array.from(attMap.values()).sort((a, b) => new Date(b.waktu_absen).getTime() - new Date(a.waktu_absen).getTime());
 
-      const attendanceItems: ApprovalItem[] = (attendances.data || [])
+      const repMap = new Map();
+      [...(resRepDate.data || []), ...(resRepPending.data || [])].forEach(r => repMap.set(r.id, r));
+      const mergedReports = Array.from(repMap.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      const attendanceItems: ApprovalItem[] = mergedAttendances
         .map(a => {
           const profile = a.profiles;
           return {
@@ -108,7 +105,7 @@ export default function ApprovalPage() {
           };
       });
 
-      const reportItems: ApprovalItem[] = (reports.data || [])
+      const reportItems: ApprovalItem[] = mergedReports
         .map(r => {
           const profile = r.profiles;
           return {
