@@ -903,9 +903,11 @@ export default function LaporanBKPSDMPage() {
                         <p>{manualInputs.atasNama}</p>
                         <p className="pl-6 font-normal">{manualInputs.jabatanPengirim}</p>
                         <div className="h-20"></div>
-                        <p className="font-normal">{manualInputs.kepalaNama}</p>
-                        <p>{manualInputs.kepalaPangkat}</p>
-                        <p>NIP {manualInputs.kepalaNip}</p>
+                        <div className="pl-6">
+                          <p className="font-normal">{manualInputs.kepalaNama}</p>
+                          <p>{manualInputs.kepalaPangkat}</p>
+                          <p>NIP {manualInputs.kepalaNip}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1010,9 +1012,11 @@ export default function LaporanBKPSDMPage() {
                       <p>{manualInputs.atasNama}</p>
                       <p className="pl-6 font-normal">{manualInputs.jabatanPengirim}</p>
                       <div className="h-20"></div>
-                      <p className="font-normal">{manualInputs.kepalaNama}</p>
-                      <p>{manualInputs.kepalaPangkat}</p>
-                      <p>NIP {manualInputs.kepalaNip}</p>
+                      <div className="pl-6">
+                        <p className="font-normal">{manualInputs.kepalaNama}</p>
+                        <p>{manualInputs.kepalaPangkat}</p>
+                        <p>NIP {manualInputs.kepalaNip}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1027,7 +1031,7 @@ export default function LaporanBKPSDMPage() {
             font-family: Arial, Helvetica, sans-serif !important;
           }
           @page {
-            margin: 2cm;
+            margin: 1.5cm;
           }
           @media print {
             body * {
