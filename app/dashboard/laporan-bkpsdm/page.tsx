@@ -976,7 +976,7 @@ export default function LaporanBKPSDMPage() {
                   </div>
 
                   {/* Table Anggaran */}
-                  <div className="space-y-2 mt-4 text-[12pt]">
+                  <div className="space-y-2 mt-2 text-[12pt]">
                     <table className="w-full border-collapse border border-black text-[11pt]">
                       <thead>
                         <tr className="bg-slate-100 font-bold text-center">
@@ -1000,14 +1000,14 @@ export default function LaporanBKPSDMPage() {
                       </tbody>
                     </table>
 
-                    <div className="mt-3 text-[10pt] italic text-slate-700 space-y-0.5">
+                    <div className="mt-2 text-[10pt] italic text-slate-700 space-y-0.5">
                       <p>Keterangan:</p>
                       <p>1. (N) adalah bulan yang sedang berjalan ({MONTHS[selectedMonth]} {selectedYear}).</p>
                     </div>
                   </div>
 
                   {/* Signature BPKPAD */}
-                  <div className="flex justify-end mt-12">
+                  <div className="flex justify-end mt-8">
                     <div className="w-[300px] text-left leading-normal text-[12pt]">
                       <p>{manualInputs.atasNama}</p>
                       <p className="pl-6 font-normal">{manualInputs.jabatanPengirim}</p>
