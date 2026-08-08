@@ -53,11 +53,9 @@ export default function LaporanBKPSDMPage() {
 
   // Kop Surat Image Upload State
   const [kopImageUrl, setKopImageUrl] = useState<string | null>(null);
-  const [isUploadingKop, setIsUploadingKop] = useState(false);
   const kopFileInputRef = useRef<HTMLInputElement>(null);
 
   // Manual input state for customization
-
   const [manualInputs, setManualInputs] = useState({
     nomorSuratBKPSDM: '000.1.2/123/2026',
     nomorSuratBPKPAD: '000.1.2/124/2026',
@@ -119,43 +117,24 @@ export default function LaporanBKPSDMPage() {
   }, []);
 
   // Handle Kop Upload
-  const handleKopUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleKopUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 3 * 1024 * 1024) {
         alert('Ukuran file gambar kop surat terlalu besar (maksimal 3MB).');
         return;
       }
-      
-      setIsUploadingKop(true);
-      try {
-        const fileName = `kop_surat_${Date.now()}.jpg`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('attendance-photos')
-          .upload(fileName, file, {
-            contentType: file.type || 'image/jpeg',
-            upsert: true
-          });
-          
-        if (uploadError) {
-          throw uploadError;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        setKopImageUrl(result);
+        try {
+          localStorage.setItem('sijambu_kop_surat_image', result);
+        } catch {
+          console.warn('Could not save kop image to localStorage due to quota limits');
         }
-        
-        const { data: publicUrlData } = supabase.storage
-          .from('attendance-photos')
-          .getPublicUrl(fileName);
-          
-        const publicUrl = publicUrlData.publicUrl;
-        
-        setKopImageUrl(publicUrl);
-        localStorage.setItem('sijambu_kop_surat_image', publicUrl);
-      } catch (err) {
-        console.error('Error uploading kop surat:', err);
-        alert('Gagal mengupload gambar. Silakan coba lagi.');
-      } finally {
-        setIsUploadingKop(false);
-      }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -363,17 +342,15 @@ export default function LaporanBKPSDMPage() {
                     <button
                       type="button"
                       onClick={() => kopFileInputRef.current?.click()}
-                      disabled={isUploadingKop}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all disabled:opacity-50"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all"
                     >
-                      {isUploadingKop ? <RefreshCw size={14} className="animate-spin" /> : <Upload size={14} />}
-                      {isUploadingKop ? 'Mengupload...' : 'Ganti Gambar Kop'}
+                      <Upload size={14} />
+                      Ganti Gambar Kop
                     </button>
                     <button
                       type="button"
                       onClick={handleRemoveKop}
-                      disabled={isUploadingKop}
-                      className="flex items-center justify-center gap-1.5 py-2 px-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold text-rose-700 hover:bg-rose-100 transition-all disabled:opacity-50"
+                      className="flex items-center justify-center gap-1.5 py-2 px-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold text-rose-700 hover:bg-rose-100 transition-all"
                       title="Hapus dan gunakan Kop Standar"
                     >
                       <Trash2 size={14} />
@@ -389,11 +366,10 @@ export default function LaporanBKPSDMPage() {
                   <button
                     type="button"
                     onClick={() => kopFileInputRef.current?.click()}
-                    disabled={isUploadingKop}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-800 text-white rounded-xl text-xs font-bold hover:bg-emerald-900 transition-all shadow-md shadow-emerald-800/10 disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-800 text-white rounded-xl text-xs font-bold hover:bg-emerald-900 transition-all shadow-md shadow-emerald-800/10"
                   >
-                    {isUploadingKop ? <RefreshCw size={16} className="animate-spin" /> : <Upload size={16} />}
-                    <span>{isUploadingKop ? 'Sedang Mengupload...' : 'Upload Gambar KOP Surat Official'}</span>
+                    <Upload size={16} />
+                    <span>Upload Gambar KOP Surat Official</span>
                   </button>
                 </div>
               )}
@@ -927,11 +903,9 @@ export default function LaporanBKPSDMPage() {
                         <p>{manualInputs.atasNama}</p>
                         <p className="pl-6 font-normal">{manualInputs.jabatanPengirim}</p>
                         <div className="h-20"></div>
-                        <div className="pl-6">
-                          <p className="font-normal">{manualInputs.kepalaNama}</p>
-                          <p>{manualInputs.kepalaPangkat}</p>
-                          <p>NIP {manualInputs.kepalaNip}</p>
-                        </div>
+                        <p className="font-normal">{manualInputs.kepalaNama}</p>
+                        <p>{manualInputs.kepalaPangkat}</p>
+                        <p>NIP {manualInputs.kepalaNip}</p>
                       </div>
                     </div>
                   </div>
@@ -1036,11 +1010,9 @@ export default function LaporanBKPSDMPage() {
                       <p>{manualInputs.atasNama}</p>
                       <p className="pl-6 font-normal">{manualInputs.jabatanPengirim}</p>
                       <div className="h-20"></div>
-                      <div className="pl-6">
-                        <p className="font-normal">{manualInputs.kepalaNama}</p>
-                        <p>{manualInputs.kepalaPangkat}</p>
-                        <p>NIP {manualInputs.kepalaNip}</p>
-                      </div>
+                      <p className="font-normal">{manualInputs.kepalaNama}</p>
+                      <p>{manualInputs.kepalaPangkat}</p>
+                      <p>NIP {manualInputs.kepalaNip}</p>
                     </div>
                   </div>
                 </div>
@@ -1053,6 +1025,9 @@ export default function LaporanBKPSDMPage() {
         <style jsx global>{`
           #print-area, #print-area * {
             font-family: Arial, Helvetica, sans-serif !important;
+          }
+          @page {
+            margin: 2cm;
           }
           @media print {
             body * {
