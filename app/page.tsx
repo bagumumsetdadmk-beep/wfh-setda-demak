@@ -74,16 +74,28 @@ export default function LoginPage() {
     }
   };
 
+  const supabaseBgUrl = supabase.storage.from('backgrounds').getPublicUrl('asn_3d_disney_wfh.jpg').data.publicUrl;
+
   return (
     <div className="min-h-screen w-full relative flex items-center justify-center lg:justify-end p-4 sm:p-6 lg:p-12 font-sans overflow-x-hidden bg-slate-950">
-      {/* Background Image 3D Disney ASN WFH with 90% Transparency */}
-      <div 
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-700 opacity-90 scale-105 filter brightness-95"
-        style={{ backgroundImage: `url('/asn_3d_disney_wfh.jpg')` }}
+      {/* Background Image 3D Disney ASN WFH stored in Supabase Storage with 90% opacity */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img 
+        src={supabaseBgUrl} 
+        alt="Background 3D ASN WFH Supabase" 
+        className="absolute inset-0 w-full h-full object-cover object-center opacity-90 filter brightness-95 transition-all duration-700 pointer-events-none"
+        onError={(e) => {
+          // Fallback if network or Supabase URL is unreachable
+          if (e.currentTarget.src !== window.location.origin + '/asn_3d_disney_wfh.jpg') {
+            e.currentTarget.src = '/asn_3d_disney_wfh.jpg';
+          } else {
+            e.currentTarget.src = '/asn_wfh_bg.jpg';
+          }
+        }}
       />
 
-      {/* Balanced Overlay: Dark subtle gradient that preserves 3D background clarity while keeping form crisp */}
-      <div className="absolute inset-0 bg-gradient-to-r from-slate-950/70 via-slate-950/40 to-slate-950/80 backdrop-blur-[1px]" />
+      {/* Balanced Overlay: Dark subtle gradient for contrast without obscuring the background */}
+      <div className="absolute inset-0 bg-gradient-to-r from-slate-950/60 via-slate-950/30 to-slate-950/75 pointer-events-none" />
 
       {/* Ambient Glow Effects */}
       <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-indigo-600/15 rounded-full blur-[140px] pointer-events-none" />
