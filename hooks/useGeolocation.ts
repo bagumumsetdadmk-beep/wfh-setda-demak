@@ -188,10 +188,16 @@ export function useGeolocation(options: UseGeolocationOptions = {}): UseGeolocat
   // Initial load
   useEffect(() => {
     isMountedRef.current = true;
-    requestLocation();
+
+    const timer = setTimeout(() => {
+      if (isMountedRef.current) {
+        requestLocation();
+      }
+    }, 0);
 
     return () => {
       isMountedRef.current = false;
+      clearTimeout(timer);
       if (watchIdRef.current !== null && typeof window !== 'undefined' && 'geolocation' in navigator) {
         navigator.geolocation.clearWatch(watchIdRef.current);
       }

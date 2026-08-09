@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { 
     FileText, 
@@ -35,11 +35,13 @@ export default function LaporanKerjaPage() {
   const currentEditingReport = reports.find(r => r.id === editingId);
   const isEditingRevision = !!(currentEditingReport && (currentEditingReport.status === 'REVISION' || currentEditingReport.status_approval === 'REVISION'));
 
-  const fetchReports = async () => {
-    setIsLoading(true);
+  const fetchReports = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        setIsLoading(false);
+        return;
+      }
 
       const { data, error } = await supabase
         .from('work_reports')
@@ -54,9 +56,9 @@ export default function LaporanKerjaPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const fetchContext = async () => {
+  const fetchContext = useCallback(async () => {
     try {
       const today = new Date().toLocaleDateString('en-CA');
       const startOfDay = `${today}T00:00:00+07:00`;
@@ -91,12 +93,23 @@ export default function LaporanKerjaPage() {
     } catch (err) {
       console.error('Error fetching context:', err);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchReports();
-    fetchContext();
-  }, []);
+    let mounted = true;
+
+    const timer = setTimeout(() => {
+      if (mounted) {
+        fetchReports();
+        fetchContext();
+      }
+    }, 0);
+
+    return () => {
+      mounted = false;
+      clearTimeout(timer);
+    };
+  }, [fetchReports, fetchContext]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,29 +203,6 @@ export default function LaporanKerjaPage() {
         if (error) throw error;
         setEditingId(null);
       } else {
-        // Pre-check if report of same type already exists for today
-        const existingReport = reports.find(
-          r => r.tanggal === today && r.tipe === activeTab
-        );
-
-        if (existingReport) {
-          const tipeLabel = activeTab === 'RENCANA' ? 'Rencana Kerja' : 'Laporan Hasil Kerja';
-          if (existingReport.status === 'REVISION' || existingReport.status_approval === 'REVISION') {
-            setNotification({
-              type: 'WARNING',
-              message: `${tipeLabel} Perlu Perbaikan`,
-              submessage: `Anda sudah memiliki ${tipeLabel} hari ini yang membutuhkan revisi. Silakan gunakan tombol "Edit / Perbaiki" pada tabel laporan di bawah.`
-            });
-          } else {
-            setNotification({
-              type: 'WARNING',
-              message: `${tipeLabel} Sudah Terkirim`,
-              submessage: `Anda sudah mengirimkan ${tipeLabel} untuk hari ini. Silakan tunggu persetujuan (approval) dari pimpinan.`
-            });
-          }
-          return;
-        }
-
         const { error } = await supabase.from('work_reports').insert({
           user_id: session.user.id,
           tanggal: today,
@@ -231,27 +221,11 @@ export default function LaporanKerjaPage() {
       fetchReports();
       setTimeout(() => setIsSubmitted(false), 3000);
     } catch (err: any) {
-      console.error('Submit report error:', err);
-      const isDuplicate = 
-        err?.code === '23505' || 
-        err?.message?.toLowerCase()?.includes('duplicate') || 
-        err?.message?.toLowerCase()?.includes('already exists') || 
-        err?.message?.toLowerCase()?.includes('unique constraint');
-
-      if (isDuplicate) {
-        const tipeLabel = activeTab === 'RENCANA' ? 'Rencana Kerja' : 'Laporan Hasil Kerja';
-        setNotification({
-          type: 'WARNING',
-          message: `${tipeLabel} Sudah Terkirim`,
-          submessage: `Anda sudah mengirimkan ${tipeLabel} untuk hari ini. Silakan tunggu persetujuan (approval) dari pimpinan.`
-        });
-      } else {
-        setNotification({
+      setNotification({
           type: 'ERROR',
           message: 'Laporan Gagal Dikirim',
-          submessage: 'Gagal mengirim laporan: ' + (err.message || 'Terjadi kesalahan pada server.')
-        });
-      }
+          submessage: 'Gagal mengirim laporan: ' + err.message
+      });
     }
   };
 
