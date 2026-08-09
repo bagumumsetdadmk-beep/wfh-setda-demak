@@ -94,14 +94,8 @@ export default function LaporanKerjaPage() {
   };
 
   useEffect(() => {
-    let mounted = true;
-    if (mounted) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchReports();
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchContext();
-    }
-    return () => { mounted = false; };
+    fetchReports();
+    fetchContext();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -196,6 +190,29 @@ export default function LaporanKerjaPage() {
         if (error) throw error;
         setEditingId(null);
       } else {
+        // Pre-check if report of same type already exists for today
+        const existingReport = reports.find(
+          r => r.tanggal === today && r.tipe === activeTab
+        );
+
+        if (existingReport) {
+          const tipeLabel = activeTab === 'RENCANA' ? 'Rencana Kerja' : 'Laporan Hasil Kerja';
+          if (existingReport.status === 'REVISION' || existingReport.status_approval === 'REVISION') {
+            setNotification({
+              type: 'WARNING',
+              message: `${tipeLabel} Perlu Perbaikan`,
+              submessage: `Anda sudah memiliki ${tipeLabel} hari ini yang membutuhkan revisi. Silakan gunakan tombol "Edit / Perbaiki" pada tabel laporan di bawah.`
+            });
+          } else {
+            setNotification({
+              type: 'WARNING',
+              message: `${tipeLabel} Sudah Terkirim`,
+              submessage: `Anda sudah mengirimkan ${tipeLabel} untuk hari ini. Silakan tunggu persetujuan (approval) dari pimpinan.`
+            });
+          }
+          return;
+        }
+
         const { error } = await supabase.from('work_reports').insert({
           user_id: session.user.id,
           tanggal: today,
@@ -214,11 +231,27 @@ export default function LaporanKerjaPage() {
       fetchReports();
       setTimeout(() => setIsSubmitted(false), 3000);
     } catch (err: any) {
-      setNotification({
+      console.error('Submit report error:', err);
+      const isDuplicate = 
+        err?.code === '23505' || 
+        err?.message?.toLowerCase()?.includes('duplicate') || 
+        err?.message?.toLowerCase()?.includes('already exists') || 
+        err?.message?.toLowerCase()?.includes('unique constraint');
+
+      if (isDuplicate) {
+        const tipeLabel = activeTab === 'RENCANA' ? 'Rencana Kerja' : 'Laporan Hasil Kerja';
+        setNotification({
+          type: 'WARNING',
+          message: `${tipeLabel} Sudah Terkirim`,
+          submessage: `Anda sudah mengirimkan ${tipeLabel} untuk hari ini. Silakan tunggu persetujuan (approval) dari pimpinan.`
+        });
+      } else {
+        setNotification({
           type: 'ERROR',
           message: 'Laporan Gagal Dikirim',
-          submessage: 'Gagal mengirim laporan: ' + err.message
-      });
+          submessage: 'Gagal mengirim laporan: ' + (err.message || 'Terjadi kesalahan pada server.')
+        });
+      }
     }
   };
 

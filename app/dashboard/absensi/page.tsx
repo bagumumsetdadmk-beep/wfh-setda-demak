@@ -2,21 +2,39 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
-import { Camera, MapPin, CheckCircle2, AlertTriangle, ShieldCheck, Map as MapIcon, Trash2 } from 'lucide-react';
+import { Camera, MapPin, CheckCircle2, AlertTriangle, ShieldCheck, Map as MapIcon, Trash2, RefreshCw, Navigation, AlertCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import { useGeolocation } from '@/hooks/useGeolocation';
 
 export default function AbsensiPage() {
   const [photo, setPhoto] = useState<string | null>(null);
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [address, setAddress] = useState<string>('Mendeteksi lokasi...');
   const [isCameraActive, setCameraActive] = useState(false);
   const [type, setType] = useState<'MASUK' | 'PULANG'>('MASUK');
   const [status, setStatus] = useState<'IDLE' | 'CAPTURING' | 'SUBMITTED'>('IDLE');
   const [todaySchedule, setTodaySchedule] = useState<any>(null);
   const [isCheckingSchedule, setIsCheckingSchedule] = useState(true);
   const [notification, setNotification] = useState<{ type: 'ERROR' | 'SUCCESS' | 'WARNING'; message: string; submessage?: string } | null>(null);
+
+  // Custom Geolocation Hook with High Accuracy & 50m Threshold
+  const {
+    location,
+    accuracy,
+    isAccuracyValid,
+    accuracyThreshold,
+    address,
+    loading: geoLoading,
+    error: geoError,
+    refreshLocation
+  } = useGeolocation({
+    enableHighAccuracy: true,
+    timeout: 15000,
+    maximumAge: 0,
+    accuracyThreshold: 50,
+    watch: true,
+    reverseGeocode: true,
+  });
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -65,13 +83,12 @@ export default function AbsensiPage() {
   };
 
   const fetchTodaySchedule = async () => {
-    setIsCheckingSchedule(true);
     try {
       const today = new Date().toLocaleDateString('en-CA');
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('wfh_schedules')
         .select('*')
         .eq('user_id', session.user.id)
@@ -88,45 +105,11 @@ export default function AbsensiPage() {
   };
 
   useEffect(() => {
-    let mounted = true;
-    if (mounted) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchAttendanceHistory();
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchTodaySchedule();
-    }
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          setLocation({ lat, lng });
-          
-          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`)
-            .then(res => res.json())
-            .then(data => {
-              if (data && data.display_name) {
-                setAddress(data.display_name);
-              } else {
-                setAddress(`Koordinat: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-              }
-            })
-            .catch(() => {
-              setAddress(`Koordinat: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-            });
-        },
-        (err) => {
-          setAddress('Gagal mendeteksi lokasi. Menggunakan lokasi default Demak.');
-          setLocation({ lat: -6.8943, lng: 110.6385 }); // Default Demak Koordinat
-        },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
-      );
-    } else {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setAddress('Browser tidak mendukung lokasi. Menggunakan lokasi default Demak.');
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setLocation({ lat: -6.8943, lng: 110.6385 });
-    }
+    const loadInitialData = async () => {
+      await fetchAttendanceHistory();
+      await fetchTodaySchedule();
+    };
+    loadInitialData();
   }, []);
 
   const startCamera = async () => {
@@ -190,7 +173,32 @@ export default function AbsensiPage() {
   };
 
   const handleSubmit = async () => {
-    if (!photo || !location) return;
+    if (!photo) {
+      setNotification({
+        type: 'WARNING',
+        message: 'Foto Belum Diambil',
+        submessage: 'Silakan ambil swafoto terlebih dahulu sebelum mengirim presensi.'
+      });
+      return;
+    }
+
+    if (!location) {
+      setNotification({
+        type: 'WARNING',
+        message: 'Lokasi Tidak Ditemukan',
+        submessage: 'Gagal mendeteksi lokasi presisi Anda. Pastikan GPS aktif dan berikan izin lokasi pada browser.'
+      });
+      return;
+    }
+
+    if (!isAccuracyValid) {
+      setNotification({
+        type: 'WARNING',
+        message: 'Akurasi GPS Belum Memenuhi Syarat',
+        submessage: `Akurasi GPS saat ini adalah ${accuracy ?? 'tidak terdeteksi'} meter (syarat maksimal ${accuracyThreshold}m). Harap pindah ke area terbuka dan tekan tombol "Segarkan Lokasi".`
+      });
+      return;
+    }
     
     const todayStr = new Date().toLocaleDateString('en-CA');
     const revisionRecord = attendanceHistory.find(item => {
@@ -473,16 +481,81 @@ export default function AbsensiPage() {
             {/* Form Section */}
             <div className="space-y-6">
               <div className="dashboard-card">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Informasi Lokasi</h4>
-                <div className="flex gap-4 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Informasi Lokasi & GPS</h4>
+                  <button
+                    onClick={refreshLocation}
+                    disabled={geoLoading}
+                    className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                    title="Segarkan lokasi GPS"
+                  >
+                    <RefreshCw size={12} className={cn(geoLoading && "animate-spin")} />
+                    <span>{geoLoading ? 'Mendeteksi...' : 'Segarkan Lokasi'}</span>
+                  </button>
+                </div>
+
+                {/* Error Banner */}
+                {geoError && (
+                  <div className="p-4 bg-red-50 rounded-2xl border border-red-200 text-red-800 space-y-3 mb-6">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle size={20} className="text-red-500 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide">Gagal Mengakses Lokasi GPS</p>
+                        <p className="text-xs text-red-700 leading-relaxed mt-1 font-medium">{geoError.message}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={refreshLocation}
+                      className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-red-600/20"
+                    >
+                      <RefreshCw size={14} />
+                      Coba Lagi
+                    </button>
+                  </div>
+                )}
+
+                {/* Location Address & Geotag */}
+                <div className="flex gap-4 mb-4">
                   <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 shadow-sm border border-blue-100">
                     <MapPin size={24} />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-slate-800">Geotagging Aktif</p>
+                    <p className="text-sm font-bold text-slate-800">Geotagging Presisi</p>
                     <p className="text-xs text-slate-500 leading-relaxed font-medium">{address}</p>
                   </div>
                 </div>
+
+                {/* Accuracy Indicator Badge */}
+                {accuracy !== null && !geoError && (
+                  <div className={cn(
+                    "p-3 rounded-xl border flex items-center justify-between gap-2 mb-4 transition-all",
+                    isAccuracyValid 
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-800" 
+                      : "bg-amber-50 border-amber-200 text-amber-900"
+                  )}>
+                    <div className="flex items-center gap-2">
+                      <Navigation size={16} className={isAccuracyValid ? "text-emerald-600" : "text-amber-600"} />
+                      <div>
+                        <p className="text-xs font-bold">
+                          Akurasi GPS: <span className="font-black underline">{accuracy} meter</span>
+                        </p>
+                        <p className="text-[11px] opacity-80">
+                          {isAccuracyValid 
+                            ? `Sinyal Bagus (Memenuhi syarat ≤ ${accuracyThreshold}m)`
+                            : `Sinyal Kurang Akurat (Melebihi syarat ${accuracyThreshold}m)`}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={cn(
+                      "text-[10px] font-black uppercase px-2.5 py-1 rounded-full shrink-0 shadow-sm",
+                      isAccuracyValid 
+                        ? "bg-emerald-600 text-white" 
+                        : "bg-amber-500 text-white animate-pulse"
+                    )}>
+                      {isAccuracyValid ? "Sinyal Valid" : "Di Atas 50m"}
+                    </span>
+                  </div>
+                )}
                 
                 <div className="aspect-video bg-slate-100 rounded-2xl flex items-center justify-center border border-slate-200 overflow-hidden relative">
                   {location ? (
@@ -526,6 +599,29 @@ export default function AbsensiPage() {
                   </button>
                 </div>
 
+                {/* Accuracy Warning Banner if accuracy > 50m */}
+                {!isAccuracyValid && accuracy !== null && !geoError && (
+                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-300 text-amber-900 mb-6 space-y-2">
+                    <div className="flex items-center gap-2 font-black text-xs uppercase text-amber-800">
+                      <AlertTriangle size={18} className="text-amber-600 shrink-0" />
+                      <span>Sinyal GPS Kurang Akurat ({accuracy}m)</span>
+                    </div>
+                    <p className="text-xs text-amber-800 leading-relaxed font-medium">
+                      Akurasi GPS Anda saat ini adalah <strong className="font-bold">{accuracy} meter</strong>. Tombol &quot;Kirim Presensi&quot; dikunci sampai akurasi GPS berada di bawah <strong className="font-bold">50 meter</strong> demi validitas lokasi WFH.
+                    </p>
+                    <div className="pt-1 flex items-center justify-between">
+                      <span className="text-[11px] text-amber-700 italic">Tips: Pindah ke dekat jendela atau area luar ruangan.</span>
+                      <button
+                        onClick={refreshLocation}
+                        className="px-3 py-1 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-all shadow-sm flex items-center gap-1"
+                      >
+                        <RefreshCw size={12} className={cn(geoLoading && "animate-spin")} />
+                        Coba Lagi
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {activeRevision ? (
                   <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 flex flex-col gap-1 mb-6">
                     <div className="flex gap-2 items-center text-amber-800">
@@ -551,11 +647,24 @@ export default function AbsensiPage() {
                 )}
 
                 <button 
-                  disabled={!photo || !location}
+                  disabled={!photo || !location || !isAccuracyValid || geoLoading}
                   onClick={handleSubmit}
-                  className="w-full bg-indigo-600 disabled:bg-slate-300 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-600/20 active:scale-95 transition-all text-sm uppercase tracking-widest"
+                  className="w-full bg-indigo-600 disabled:bg-slate-300 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-600/20 active:scale-95 transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2"
                 >
-                  Kirim Presensi Sekarang
+                  {geoLoading ? (
+                    <>
+                      <RefreshCw size={18} className="animate-spin" />
+                      <span>Mendeteksi Lokasi Presisi...</span>
+                    </>
+                  ) : !photo ? (
+                    <span>Ambil Swafoto Terlebih Dahulu</span>
+                  ) : !location ? (
+                    <span>Mencari Lokasi GPS...</span>
+                  ) : !isAccuracyValid ? (
+                    <span>Akurasi GPS Harus ≤ 50m (Saat ini: {accuracy}m)</span>
+                  ) : (
+                    <span>Kirim Presensi Sekarang</span>
+                  )}
                 </button>
               </div>
             </div>
