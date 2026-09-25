@@ -1,12 +1,31 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
-import { Camera, MapPin, CheckCircle2, AlertTriangle, ShieldCheck, Map as MapIcon, Trash2, RefreshCw, Navigation, AlertCircle } from 'lucide-react';
+import { 
+  Camera, 
+  MapPin, 
+  CheckCircle2, 
+  AlertTriangle, 
+  ShieldCheck, 
+  Map as MapIcon, 
+  Trash2, 
+  RefreshCw, 
+  Navigation, 
+  AlertCircle,
+  Sliders,
+  Home,
+  Compass,
+  Radio,
+  Save,
+  X,
+  Loader2
+} from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
+import { supabase, Profile } from '@/lib/supabase';
 import { useGeolocation } from '@/hooks/useGeolocation';
+import { calculateDistanceMeters, formatDistance, EmployeeRadiusConfig, AppRadiusSettings, DEFAULT_RADIUS_SETTINGS } from '@/lib/geoDistance';
 
 export default function AbsensiPage() {
   const [photo, setPhoto] = useState<string | null>(null);
@@ -17,7 +36,25 @@ export default function AbsensiPage() {
   const [isCheckingSchedule, setIsCheckingSchedule] = useState(true);
   const [notification, setNotification] = useState<{ type: 'ERROR' | 'SUCCESS' | 'WARNING'; message: string; submessage?: string } | null>(null);
 
-  // Custom Geolocation Hook with High Accuracy & 50m Threshold
+  // Dynamic radius & GPS tolerance configuration per employee
+  const [effectiveRadius, setEffectiveRadius] = useState<number>(200);
+  const [effectiveGpsTolerance, setEffectiveGpsTolerance] = useState<number>(150);
+  const [isFlexible, setIsFlexible] = useState<boolean>(false);
+  const [userRadiusConfig, setUserRadiusConfig] = useState<EmployeeRadiusConfig | null>(null);
+  const [radiusSettings, setRadiusSettings] = useState<AppRadiusSettings>(DEFAULT_RADIUS_SETTINGS);
+  const [userProfile, setUserProfile] = useState<Profile | null>(null);
+
+  // Radius adjustment modal states
+  const [isRadiusModalOpen, setIsRadiusModalOpen] = useState(false);
+  const [modalRadius, setModalRadius] = useState<number>(200);
+  const [modalTolerance, setModalTolerance] = useState<number>(150);
+  const [modalIsFlexible, setModalIsFlexible] = useState<boolean>(false);
+  const [modalAddressName, setModalAddressName] = useState<string>('');
+  const [modalLat, setModalLat] = useState<string>('');
+  const [modalLng, setModalLng] = useState<string>('');
+  const [savingRadius, setSavingRadius] = useState<boolean>(false);
+
+  // Geolocation Hook with dynamic tolerance & flexible signal support
   const {
     location,
     accuracy,
@@ -31,7 +68,8 @@ export default function AbsensiPage() {
     enableHighAccuracy: true,
     timeout: 15000,
     maximumAge: 0,
-    accuracyThreshold: 50,
+    accuracyThreshold: effectiveGpsTolerance,
+    isFlexible: isFlexible,
     watch: true,
     reverseGeocode: true,
   });
@@ -61,6 +99,63 @@ export default function AbsensiPage() {
       setIsDeleting(false);
       setDeleteId(null);
     }
+  };
+
+  // Distance to home calculation
+  const distanceToHome = useMemo(() => {
+    if (!location || !userRadiusConfig?.latitude || !userRadiusConfig?.longitude) return null;
+    return calculateDistanceMeters(location.lat, location.lng, userRadiusConfig.latitude, userRadiusConfig.longitude);
+  }, [location, userRadiusConfig]);
+
+  const isDistanceValid = useMemo(() => {
+    if (distanceToHome === null) return true;
+    const allowed = isFlexible ? effectiveRadius * 1.5 : effectiveRadius;
+    return distanceToHome <= allowed;
+  }, [distanceToHome, isFlexible, effectiveRadius]);
+
+  const fetchRadiusSettings = async (userId: string, userNip?: string) => {
+    try {
+      const res = await fetch('/api/radius-settings');
+      if (res.ok) {
+        const config: AppRadiusSettings = await res.json();
+        setRadiusSettings(config);
+        const userCfg = config.pegawai_radius[userId] || (userNip ? config.pegawai_radius[userNip] : null);
+        if (userCfg) {
+          setUserRadiusConfig(userCfg);
+          setEffectiveRadius(userCfg.radius_meter || config.default_radius || 200);
+          setEffectiveGpsTolerance(userCfg.toleransi_gps_meter || config.default_gps_tolerance || 150);
+          setIsFlexible(!!userCfg.is_flexible);
+          setModalRadius(userCfg.radius_meter || config.default_radius || 200);
+          setModalTolerance(userCfg.toleransi_gps_meter || config.default_gps_tolerance || 150);
+          setModalIsFlexible(!!userCfg.is_flexible);
+          setModalAddressName(userCfg.lokasi_nama || '');
+          setModalLat(userCfg.latitude ? String(userCfg.latitude) : '');
+          setModalLng(userCfg.longitude ? String(userCfg.longitude) : '');
+        } else {
+          setEffectiveRadius(config.default_radius || 200);
+          setEffectiveGpsTolerance(config.default_gps_tolerance || 150);
+          setModalRadius(config.default_radius || 200);
+          setModalTolerance(config.default_gps_tolerance || 150);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching radius settings:', err);
+    }
+  };
+
+  const fetchUserProfile = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return null;
+      const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+      if (data) {
+        setUserProfile(data as Profile);
+        return data as Profile;
+      }
+    } catch (e) {
+      console.error('Error fetching profile:', e);
+    }
+    return null;
   };
 
   const fetchAttendanceHistory = async () => {
@@ -106,11 +201,81 @@ export default function AbsensiPage() {
 
   useEffect(() => {
     const loadInitialData = async () => {
+      const prof = await fetchUserProfile();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        await fetchRadiusSettings(session.user.id, prof?.nip);
+      }
       await fetchAttendanceHistory();
       await fetchTodaySchedule();
     };
     loadInitialData();
   }, []);
+
+  const handleSaveModalRadius = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    setSavingRadius(true);
+    try {
+      const targetProfile = userProfile || {
+        id: session.user.id,
+        nip: session.user.email?.split('@')[0] || 'PEGAWAI',
+        nama_lengkap: 'Pegawai WFH',
+        unit_kerja: 'Setda Demak'
+      };
+
+      const payload: EmployeeRadiusConfig = {
+        user_id: targetProfile.id,
+        nip: targetProfile.nip,
+        nama_lengkap: targetProfile.nama_lengkap,
+        unit_kerja: targetProfile.unit_kerja,
+        radius_meter: Number(modalRadius) || 200,
+        toleransi_gps_meter: Number(modalTolerance) || 150,
+        lokasi_nama: modalAddressName || `Rumah WFH - ${targetProfile.nama_lengkap}`,
+        latitude: modalLat ? parseFloat(modalLat) : null,
+        longitude: modalLng ? parseFloat(modalLng) : null,
+        is_flexible: modalIsFlexible,
+        catatan_kondisi: 'Disetel mandiri melalui halaman presensi absensi WFH'
+      };
+
+      const res = await fetch('/api/radius-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_pegawai', pegawai_config: payload })
+      });
+
+      if (!res.ok) throw new Error('Gagal menyimpan radius');
+      const result = await res.json();
+      setRadiusSettings(result.config);
+      setUserRadiusConfig(payload);
+      setEffectiveRadius(payload.radius_meter);
+      setEffectiveGpsTolerance(payload.toleransi_gps_meter);
+      setIsFlexible(payload.is_flexible || false);
+      setIsRadiusModalOpen(false);
+      setNotification({
+        type: 'SUCCESS',
+        message: 'Radius Berhasil Disimpan',
+        submessage: `Radius kehadiran WFH disetel ${payload.radius_meter} meter dan toleransi sinyal GPS ±${payload.toleransi_gps_meter} meter. Tombol presensi kini aktif.`
+      });
+    } catch (err: any) {
+      alert('Gagal menyimpan radius: ' + err.message);
+    } finally {
+      setSavingRadius(false);
+    }
+  };
+
+  const handleLockCurrentLocation = () => {
+    if (location) {
+      setModalLat(location.lat.toFixed(6));
+      setModalLng(location.lng.toFixed(6));
+      if (address && !modalAddressName) {
+        setModalAddressName(address);
+      }
+    } else {
+      refreshLocation();
+    }
+  };
 
   const startCamera = async () => {
     try {
@@ -195,7 +360,16 @@ export default function AbsensiPage() {
       setNotification({
         type: 'WARNING',
         message: 'Akurasi GPS Belum Memenuhi Syarat',
-        submessage: `Akurasi GPS saat ini adalah ${accuracy ?? 'tidak terdeteksi'} meter (syarat maksimal ${accuracyThreshold}m). Harap pindah ke area terbuka dan tekan tombol "Segarkan Lokasi".`
+        submessage: `Akurasi GPS saat ini adalah ${accuracy ?? 'tidak terdeteksi'} meter (batas toleransi Anda: ±${accuracyThreshold}m). Jika Anda berada di lokasi sulit sinyal, silakan klik tombol "Sesuaikan Radius" untuk melonggarkan toleransi atau mengaktifkan Mode Fleksibel.`
+      });
+      return;
+    }
+
+    if (!isDistanceValid && distanceToHome !== null) {
+      setNotification({
+        type: 'WARNING',
+        message: 'Melebihi Radius Lokasi WFH',
+        submessage: `Posisi Anda saat ini berjarak ${distanceToHome} meter dari titik rumah WFH (batas radius yang ditentukan: ${effectiveRadius} meter). Jika titik rumah bergeser atau sinyal GPS meleset, klik tombol "Sesuaikan Radius" untuk memperbarui titik koordinat rumah atau memperbesar radius.`
       });
       return;
     }
@@ -514,6 +688,52 @@ export default function AbsensiPage() {
                   </div>
                 )}
 
+                {/* Radius & Geofence Status Card */}
+                <div className="p-3.5 bg-gradient-to-br from-indigo-50/70 to-slate-50 border border-indigo-100 rounded-xl space-y-2 mb-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-900 uppercase tracking-wider">
+                      <Radio size={14} className="text-indigo-600 animate-pulse" />
+                      <span>Ketentuan Radius Lokasi WFH</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsRadiusModalOpen(true)}
+                      className="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 rounded-lg text-[11px] font-bold border border-indigo-200 transition-all shadow-sm"
+                      title="Buka form entri untuk menyesuaikan radius dan koordinat"
+                    >
+                      <Sliders size={12} />
+                      <span>Sesuaikan Radius</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px] pt-0.5">
+                    <div className="bg-white/90 p-2 rounded-lg border border-indigo-50">
+                      <span className="text-slate-400 block font-semibold text-[10px]">Radius Absen:</span>
+                      <span className="font-black text-indigo-700">{effectiveRadius} Meter</span>
+                    </div>
+                    <div className="bg-white/90 p-2 rounded-lg border border-indigo-50">
+                      <span className="text-slate-400 block font-semibold text-[10px]">Toleransi GPS:</span>
+                      <span className="font-black text-amber-700">±{effectiveGpsTolerance} Meter</span>
+                    </div>
+                  </div>
+
+                  {/* Distance indicator if home coordinate is set */}
+                  {userRadiusConfig?.latitude && userRadiusConfig?.longitude && (
+                    <div className={cn(
+                      "p-2 rounded-lg text-[11px] font-bold flex items-center justify-between border",
+                      isDistanceValid ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-rose-50 text-rose-800 border-rose-200"
+                    )}>
+                      <span className="flex items-center gap-1">
+                        <Home size={13} />
+                        <span>Jarak ke Rumah: {formatDistance(distanceToHome)}</span>
+                      </span>
+                      <span className="text-[10px] uppercase font-black">
+                        {isDistanceValid ? "✓ Dalam Radius" : "⚠ Melebihi Radius"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 {/* Location Address & Geotag */}
                 <div className="flex gap-4 mb-4">
                   <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 shadow-sm border border-blue-100">
@@ -542,7 +762,7 @@ export default function AbsensiPage() {
                         <p className="text-[11px] opacity-80">
                           {isAccuracyValid 
                             ? `Sinyal Bagus (Memenuhi syarat ≤ ${accuracyThreshold}m)`
-                            : `Sinyal Kurang Akurat (Melebihi syarat ${accuracyThreshold}m)`}
+                            : `Sinyal Lemah (Melebihi batas toleransi ±${accuracyThreshold}m)`}
                         </p>
                       </div>
                     </div>
@@ -552,7 +772,7 @@ export default function AbsensiPage() {
                         ? "bg-emerald-600 text-white" 
                         : "bg-amber-500 text-white animate-pulse"
                     )}>
-                      {isAccuracyValid ? "Sinyal Valid" : "Di Atas 50m"}
+                      {isAccuracyValid ? "Sinyal Valid" : `Di Atas ${accuracyThreshold}m`}
                     </span>
                   </div>
                 )}
@@ -599,18 +819,27 @@ export default function AbsensiPage() {
                   </button>
                 </div>
 
-                {/* Accuracy Warning Banner if accuracy > 50m */}
+                {/* Accuracy Warning Banner */}
                 {!isAccuracyValid && accuracy !== null && !geoError && (
                   <div className="p-4 bg-amber-50 rounded-2xl border border-amber-300 text-amber-900 mb-6 space-y-2">
-                    <div className="flex items-center gap-2 font-black text-xs uppercase text-amber-800">
-                      <AlertTriangle size={18} className="text-amber-600 shrink-0" />
-                      <span>Sinyal GPS Kurang Akurat ({accuracy}m)</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 font-black text-xs uppercase text-amber-800">
+                        <AlertTriangle size={18} className="text-amber-600 shrink-0" />
+                        <span>Sinyal GPS Melebihi Toleransi ({accuracy}m &gt; ±{accuracyThreshold}m)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsRadiusModalOpen(true)}
+                        className="text-[11px] font-bold text-indigo-700 bg-white px-2.5 py-1 rounded-lg border border-amber-200 hover:bg-indigo-50 transition-all shadow-sm"
+                      >
+                        Sesuaikan Radius
+                      </button>
                     </div>
                     <p className="text-xs text-amber-800 leading-relaxed font-medium">
-                      Akurasi GPS Anda saat ini adalah <strong className="font-bold">{accuracy} meter</strong>. Tombol &quot;Kirim Presensi&quot; dikunci sampai akurasi GPS berada di bawah <strong className="font-bold">50 meter</strong> demi validitas lokasi WFH.
+                      Akurasi GPS Anda saat ini adalah <strong className="font-bold">{accuracy} meter</strong>. Jika Anda berada di dalam rumah dengan atap tebal atau sinyal sulit, silakan klik tombol &quot;Sesuaikan Radius&quot; untuk melonggarkan batas toleransi atau mengaktifkan Mode Fleksibel.
                     </p>
                     <div className="pt-1 flex items-center justify-between">
-                      <span className="text-[11px] text-amber-700 italic">Tips: Pindah ke dekat jendela atau area luar ruangan.</span>
+                      <span className="text-[11px] text-amber-700 italic">Tips: Pindah ke dekat jendela atau luar ruangan.</span>
                       <button
                         onClick={refreshLocation}
                         className="px-3 py-1 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-all shadow-sm flex items-center gap-1"
@@ -619,6 +848,28 @@ export default function AbsensiPage() {
                         Coba Lagi
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {/* Distance Warning Banner if exceeding home radius */}
+                {!isDistanceValid && distanceToHome !== null && (
+                  <div className="p-4 bg-rose-50 rounded-2xl border border-rose-300 text-rose-900 mb-6 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 font-black text-xs uppercase text-rose-800">
+                        <AlertTriangle size={18} className="text-rose-600 shrink-0" />
+                        <span>Melebihi Radius Lokasi WFH ({distanceToHome}m &gt; {effectiveRadius}m)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsRadiusModalOpen(true)}
+                        className="text-[11px] font-bold text-rose-700 bg-white px-2.5 py-1 rounded-lg border border-rose-200 hover:bg-rose-50 transition-all shadow-sm"
+                      >
+                        Sesuaikan Radius
+                      </button>
+                    </div>
+                    <p className="text-xs text-rose-800 leading-relaxed font-medium">
+                      Jarak lokasi Anda saat ini terdeteksi <strong className="font-bold">{distanceToHome} meter</strong> dari titik rumah WFH (batas radius: {effectiveRadius} meter). Jika titik rumah Anda bergeser atau Anda berada di lokasi WFH yang sah, klik &quot;Sesuaikan Radius&quot; untuk memperbarui koordinat atau memperluas radius.
+                    </p>
                   </div>
                 )}
 
@@ -647,7 +898,7 @@ export default function AbsensiPage() {
                 )}
 
                 <button 
-                  disabled={!photo || !location || !isAccuracyValid || geoLoading}
+                  disabled={!photo || !location || !isAccuracyValid || !isDistanceValid || geoLoading}
                   onClick={handleSubmit}
                   className="w-full bg-indigo-600 disabled:bg-slate-300 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-600/20 active:scale-95 transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2"
                 >
@@ -661,7 +912,9 @@ export default function AbsensiPage() {
                   ) : !location ? (
                     <span>Mencari Lokasi GPS...</span>
                   ) : !isAccuracyValid ? (
-                    <span>Akurasi GPS Harus ≤ 50m (Saat ini: {accuracy}m)</span>
+                    <span>Akurasi GPS (±{accuracy}m) Melebihi Batas ±{accuracyThreshold}m</span>
+                  ) : !isDistanceValid ? (
+                    <span>Melebihi Radius ({distanceToHome}m &gt; {effectiveRadius}m)</span>
                   ) : (
                     <span>Kirim Presensi Sekarang</span>
                   )}
@@ -813,6 +1066,256 @@ export default function AbsensiPage() {
             >
               Mengerti
             </button>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal Form Entri Penyesuaian Radius WFH */}
+      {isRadiusModalOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl border border-slate-100 my-8 space-y-5"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                  <Sliders size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800 leading-tight">
+                    Form Entri Radius Lokasi Absen
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Penyesuaian jangkauan &amp; toleransi sinyal GPS di lokasi WFH
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRadiusModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Current Signal Status Pill */}
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between text-xs">
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block">Sinyal GPS Saat Ini:</span>
+                <span className="font-bold text-slate-700">
+                  {accuracy ? `Akurasi ±${accuracy} meter` : 'Belum terdeteksi'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={refreshLocation}
+                disabled={geoLoading}
+                className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-[11px] font-bold border border-slate-200 transition-all flex items-center gap-1"
+              >
+                <RefreshCw size={12} className={cn(geoLoading && "animate-spin")} />
+                <span>Segarkan</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveModalRadius} className="space-y-4">
+              {/* Field 1: Radius Jangkauan WFH */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Radio size={14} className="text-indigo-600" />
+                    <span>Radius Jarak Absen WFH (Meter)</span>
+                  </label>
+                  <span className="text-xs font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                    {modalRadius} m
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Jarak maksimal dari titik rumah untuk diizinkan absen masuk/pulang.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[100, 200, 300, 500, 1000].map((rVal) => (
+                    <button
+                      key={rVal}
+                      type="button"
+                      onClick={() => setModalRadius(rVal)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-lg text-xs font-bold transition-all border",
+                        modalRadius === rVal
+                          ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                      )}
+                    >
+                      {rVal}m {rVal === 200 && '(Standar)'} {rVal >= 500 && '(Luas)'}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="range"
+                    min={50}
+                    max={2000}
+                    step={25}
+                    value={modalRadius}
+                    onChange={(e) => setModalRadius(Number(e.target.value))}
+                    className="flex-1 accent-indigo-600 h-2 bg-slate-200 rounded-lg cursor-pointer"
+                  />
+                  <input
+                    type="number"
+                    min={20}
+                    max={10000}
+                    value={modalRadius}
+                    onChange={(e) => setModalRadius(Number(e.target.value))}
+                    className="w-20 px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold text-center outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <span className="text-xs text-slate-400 font-bold">m</span>
+                </div>
+              </div>
+
+              {/* Field 2: Toleransi Akurasi Sinyal GPS */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Navigation size={14} className="text-amber-600" />
+                    <span>Batas Toleransi Akurasi GPS (Meter)</span>
+                  </label>
+                  <span className="text-xs font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                    ±{modalTolerance} m
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Batas sinyal GPS yang diterima browser. Tingkatkan jika Anda di dalam rumah/atap tebal agar tombol tidak terkunci.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[50, 100, 150, 250, 500].map((tVal) => (
+                    <button
+                      key={tVal}
+                      type="button"
+                      onClick={() => setModalTolerance(tVal)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-lg text-xs font-bold transition-all border",
+                        modalTolerance === tVal
+                          ? "bg-amber-600 text-white border-amber-600 shadow-sm"
+                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                      )}
+                    >
+                      ±{tVal}m {tVal === 150 && '(Disarankan)'} {tVal >= 250 && '(Sinyal Lemah)'}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="range"
+                    min={50}
+                    max={1000}
+                    step={25}
+                    value={modalTolerance}
+                    onChange={(e) => setModalTolerance(Number(e.target.value))}
+                    className="flex-1 accent-amber-600 h-2 bg-slate-200 rounded-lg cursor-pointer"
+                  />
+                  <input
+                    type="number"
+                    min={20}
+                    max={5000}
+                    value={modalTolerance}
+                    onChange={(e) => setModalTolerance(Number(e.target.value))}
+                    className="w-20 px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold text-center outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <span className="text-xs text-slate-400 font-bold">m</span>
+                </div>
+              </div>
+
+              {/* Field 3: Titik Koordinat Rumah */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <MapPin size={14} className="text-emerald-600" />
+                    <span>Titik Koordinat Rumah WFH</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleLockCurrentLocation}
+                    className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 transition-all flex items-center gap-1"
+                  >
+                    <Navigation size={12} />
+                    <span>Kunci Posisi Saya Sekarang</span>
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Latitude: -6.894321"
+                    value={modalLat}
+                    onChange={(e) => setModalLat(e.target.value)}
+                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Longitude: 110.638765"
+                    value={modalLng}
+                    onChange={(e) => setModalLng(e.target.value)}
+                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Keterangan Alamat (contoh: Rumah Tinggal Pegawai, Wonosalam Demak)"
+                  value={modalAddressName}
+                  onChange={(e) => setModalAddressName(e.target.value)}
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              {/* Field 4: Mode Fleksibel */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="flex items-start gap-2.5 p-2.5 bg-amber-50/70 border border-amber-200 rounded-xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={modalIsFlexible}
+                    onChange={(e) => setModalIsFlexible(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500"
+                  />
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-bold text-amber-900 block">
+                      Mode Fleksibel (Alamat Sulit GPS / Blank Spot)
+                    </span>
+                    <span className="text-[10px] text-amber-700 leading-tight block">
+                      Mengizinkan absensi dikirim meskipun sinyal GPS berfluktuasi, asalkan menyertakan swafoto kehadiran yang valid.
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsRadiusModalOpen(false)}
+                  className="px-4 py-2.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingRadius}
+                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 active:scale-95 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {savingRadius ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save size={14} />
+                      <span>Simpan &amp; Terapkan Langsung</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </motion.div>
         </div>
       )}

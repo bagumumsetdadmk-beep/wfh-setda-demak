@@ -1,17 +1,57 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { useGeolocation } from '@/hooks/useGeolocation';
-import { MapPin, Navigation, AlertTriangle, RefreshCw, AlertCircle, Camera, CheckCircle2 } from 'lucide-react';
+import { MapPin, Navigation, AlertTriangle, RefreshCw, AlertCircle, Camera, CheckCircle2, Sliders } from 'lucide-react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
+import { AppRadiusSettings, DEFAULT_RADIUS_SETTINGS } from '@/lib/geoDistance';
 
 export default function AbsenPage() {
   const [photo, setPhoto] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [effectiveTolerance, setEffectiveTolerance] = useState<number>(150);
+  const [effectiveRadius, setEffectiveRadius] = useState<number>(200);
+  const [isFlexible, setIsFlexible] = useState<boolean>(false);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
-  // Hook Geolocation dengan opsi High Accuracy, Timeout 15s, dan Batas Akurasi 50m
+  useEffect(() => {
+    const loadRadius = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const { data: pData } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
+          const email = session.user.email || '';
+          if (pData?.role === 'ADMIN' || email.toLowerCase().includes('admin')) {
+            setIsAdmin(true);
+          }
+        }
+
+        const res = await fetch('/api/radius-settings');
+        if (res.ok) {
+          const cfg: AppRadiusSettings = await res.json();
+          setEffectiveRadius(cfg.default_radius || 200);
+          setEffectiveTolerance(cfg.default_gps_tolerance || 150);
+          if (session) {
+            const userCfg = cfg.pegawai_radius[session.user.id];
+            if (userCfg) {
+              setEffectiveRadius(userCfg.radius_meter || cfg.default_radius || 200);
+              setEffectiveTolerance(userCfg.toleransi_gps_meter || cfg.default_gps_tolerance || 150);
+              setIsFlexible(!!userCfg.is_flexible);
+            }
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    loadRadius();
+  }, []);
+
+  // Hook Geolocation dengan opsi High Accuracy, Timeout 15s, dan Batas Akurasi dinamis
   const {
     location,
     accuracy,
@@ -25,7 +65,8 @@ export default function AbsenPage() {
     enableHighAccuracy: true,
     timeout: 15000,
     maximumAge: 0,
-    accuracyThreshold: 50,
+    accuracyThreshold: effectiveTolerance,
+    isFlexible: isFlexible,
     watch: true,
     reverseGeocode: true,
   });
@@ -47,9 +88,20 @@ export default function AbsenPage() {
   return (
     <DashboardLayout>
       <div className="max-w-2xl mx-auto space-y-6 pb-12">
-        <div className="border-b border-slate-200 pb-4">
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Presensi WFH Geotagging</h1>
-          <p className="text-sm text-slate-500 font-medium">Pengambilan lokasi dengan akurasi presisi tinggi (Maksimal 50 meter)</p>
+        <div className="border-b border-slate-200 pb-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-black text-slate-800 tracking-tight">Presensi WFH Geotagging</h1>
+            <p className="text-sm text-slate-500 font-medium">Radius WFH: {effectiveRadius}m • Batas Akurasi GPS: ±{accuracyThreshold}m</p>
+          </div>
+          {isAdmin && (
+            <Link
+              href="/dashboard/radius"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all border border-indigo-200"
+            >
+              <Sliders size={14} />
+              <span>Atur Radius</span>
+            </Link>
+          )}
         </div>
 
         {submitted ? (
@@ -141,20 +193,30 @@ export default function AbsenPage() {
                 </div>
               )}
 
-              {/* Peringatan jika Akurasi > 50m */}
+              {/* Peringatan jika Akurasi melebihi batas toleransi */}
               {!isAccuracyValid && accuracy !== null && !geoError && (
                 <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 text-xs space-y-2">
-                  <div className="flex items-center gap-2 font-bold text-amber-800">
-                    <AlertTriangle size={16} className="text-amber-600" />
-                    <span>Akurasi GPS Belum Memenuhi Syarat</span>
+                  <div className="flex items-center justify-between font-bold text-amber-800">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle size={16} className="text-amber-600" />
+                      <span>Akurasi GPS Melebihi Batas Toleransi</span>
+                    </div>
+                    {isAdmin && (
+                      <Link
+                        href="/dashboard/radius"
+                        className="text-[11px] underline font-bold text-indigo-700 hover:text-indigo-800"
+                      >
+                        Ubah Toleransi
+                      </Link>
+                    )}
                   </div>
                   <p>
                     Lokasi Anda saat ini memiliki akurasi <strong className="font-bold">{accuracy}m</strong>.
-                    Sistem membutuhkan akurasi di bawah <strong className="font-bold">50 meter</strong>.
+                    Batas toleransi sinyal lokasi yang ditentukan adalah <strong className="font-bold">±{accuracyThreshold} meter</strong>.
                     Tombol Absen dinonaktifkan sampai sinyal lokasi mencukupi.
                   </p>
                   <p className="italic text-slate-600">
-                    Saran: Berdirilah di luar ruangan atau dekat jendela, kemudian tekan tombol <strong>&quot;Coba Lagi / Refresh&quot;</strong>.
+                    Saran: Berdirilah di dekat jendela atau area terbuka agar perangkat Anda dapat menangkap sinyal GPS dengan lebih optimal.
                   </p>
                 </div>
               )}
@@ -189,7 +251,7 @@ export default function AbsenPage() {
               )}
             </div>
 
-            {/* Tombol Absen (Disabled jika Akurasi > 50m / Tidak ada lokasi / Tidak ada foto) */}
+            {/* Tombol Absen */}
             <button
               disabled={!photo || !location || !isAccuracyValid || geoLoading || submitting}
               onClick={handleKirimAbsen}
@@ -204,7 +266,7 @@ export default function AbsenPage() {
               ) : !location ? (
                 <span>GPS Tidak Ditemukan</span>
               ) : !isAccuracyValid ? (
-                <span>Akurasi GPS Harus ≤ 50m (Saat ini: {accuracy}m)</span>
+                <span>Akurasi GPS (±{accuracy}m) Melebihi Batas ±{accuracyThreshold}m</span>
               ) : (
                 <span>Kirim Presensi Sekarang</span>
               )}

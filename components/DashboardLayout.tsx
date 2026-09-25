@@ -15,7 +15,8 @@ import {
   Menu,
   X,
   Bell,
-  Printer
+  Printer,
+  MapPin
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -30,6 +31,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Pegawai', href: '/dashboard/pegawai', icon: Users },
+  { label: 'Radius Lokasi', href: '/dashboard/radius', icon: MapPin },
   { label: 'Jadwal WFH', href: '/dashboard/jadwal', icon: Calendar },
   { label: 'Absensi', href: '/dashboard/absensi', icon: ClipboardCheck },
   { label: 'Laporan Kerja', href: '/dashboard/laporan', icon: FileText },
@@ -207,30 +209,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const allowedNavItems = navItems.filter(item => {
-    if (!userProfile) return true;
+    // While profile is loading, hide administrative and sensitive items
+    if (!userProfile) {
+      const sensitiveItems = ['Pegawai', 'Radius Lokasi', 'Persetujuan', 'Laporan BKPSDM', 'Laporan WFH'];
+      return !sensitiveItems.includes(item.label);
+    }
+
+    const role = (userProfile.role || '').toUpperCase();
     
     // Admin sees everything except Absensi and Laporan Kerja
-    if (userProfile.role === 'ADMIN') {
+    if (role === 'ADMIN') {
       const restrictedForAdmin = ['Absensi', 'Laporan Kerja'];
       return !restrictedForAdmin.includes(item.label);
     }
+
+    // Radius Lokasi is EXCLUSIVELY for ADMIN - Pegawai and Atasan must never see it
+    if (item.label === 'Radius Lokasi') return false;
 
     // Atasan/Pegawai should not see Laporan BKPSDM and Laporan WFH
     if (item.label === 'Laporan BKPSDM' || item.label === 'Laporan WFH') return false;
 
     // Atasan sees only Dashboard, Jadwal WFH, and Persetujuan
-    if (userProfile.role === 'ATASAN') {
+    if (role === 'ATASAN') {
       const allowedForAtasan = ['Dashboard', 'Jadwal WFH', 'Persetujuan'];
       return allowedForAtasan.includes(item.label);
     }
 
-    // Pegawai sees everything except Pegawai and Persetujuan
-    if (userProfile.role === 'PEGAWAI') {
-      const restrictedForPegawai = ['Pegawai', 'Persetujuan'];
+    // Pegawai sees Dashboard, Jadwal WFH, Absensi, Laporan Kerja
+    // Specifically restricted for Pegawai: Pegawai, Persetujuan, Radius Lokasi, Laporan BKPSDM, Laporan WFH
+    if (role === 'PEGAWAI') {
+      const restrictedForPegawai = ['Pegawai', 'Persetujuan', 'Radius Lokasi', 'Laporan BKPSDM', 'Laporan WFH'];
       return !restrictedForPegawai.includes(item.label);
     }
 
-    return true;
+    // Default fallback: only allow basic employee items
+    const allowedDefault = ['Dashboard', 'Jadwal WFH', 'Absensi', 'Laporan Kerja'];
+    return allowedDefault.includes(item.label);
   });
 
   return (

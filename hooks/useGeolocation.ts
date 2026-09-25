@@ -17,7 +17,8 @@ export interface UseGeolocationOptions {
   enableHighAccuracy?: boolean;
   timeout?: number;
   maximumAge?: number;
-  accuracyThreshold?: number; // In meters, default 50m
+  accuracyThreshold?: number; // In meters, default 150m (dapat disesuaikan per pegawai)
+  isFlexible?: boolean; // Jika true, toleransi sinyal di lokasi sulit sinyal
   watch?: boolean; // Continuously update position using watchPosition
   reverseGeocode?: boolean; // Fetch address string from reverse geocoding
 }
@@ -25,7 +26,7 @@ export interface UseGeolocationOptions {
 export interface UseGeolocationReturn {
   location: GeolocationLocation | null;
   accuracy: number | null; // In meters
-  isAccuracyValid: boolean; // True if accuracy <= accuracyThreshold
+  isAccuracyValid: boolean; // True if accuracy <= accuracyThreshold or isFlexible
   accuracyThreshold: number;
   address: string;
   loading: boolean;
@@ -40,7 +41,8 @@ export function useGeolocation(options: UseGeolocationOptions = {}): UseGeolocat
     enableHighAccuracy = true,
     timeout = 15000,
     maximumAge = 0,
-    accuracyThreshold = 50,
+    accuracyThreshold = 150,
+    isFlexible = false,
     watch = true,
     reverseGeocode = true,
   } = options;
@@ -212,7 +214,7 @@ export function useGeolocation(options: UseGeolocationOptions = {}): UseGeolocat
     setError(null);
   }, []);
 
-  const isAccuracyValid = accuracy !== null && accuracy <= accuracyThreshold;
+  const isAccuracyValid = accuracy !== null && (accuracy <= accuracyThreshold || isFlexible);
 
   return {
     location,
