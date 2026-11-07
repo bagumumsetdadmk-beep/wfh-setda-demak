@@ -465,32 +465,32 @@ export default function RadiusSettingsPage() {
           </button>
         </div>
 
-        {/* Info Banner: Solusi Permasalahan Petugas WFH */}
-        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-emerald-50 border border-blue-200/80 rounded-2xl p-5 shadow-sm">
+        {/* Info Banner: Kebijakan Geotagging GPS Murni */}
+        <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200 rounded-2xl p-5 shadow-sm">
           <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-indigo-600/20">
-              <Info size={22} />
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/20">
+              <CheckCircle2 size={22} />
             </div>
             <div className="space-y-1.5">
               <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                <span>Solusi Penyesuaian Radius Lokasi untuk Pegawai WFH</span>
-                <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-bold uppercase">Aktif</span>
+                <span>Sistem Geotagging GPS &amp; Alamat Terdekat Aktif (Bebas Batasan Jarak)</span>
+                <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-bold uppercase">Kebijakan Baru</span>
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                Setiap pegawai memiliki kondisi sinyal yang berbeda: ada yang mudah terdeteksi GPS, ada pula yang sulit dijangkau karena berada di dalam rumah beratap tebal, gang rapat, atau blank spot. Gunakan form di bawah untuk:
+                Sesuai kebijakan operasional terbaru, sistem <strong>tidak membatasi radius jarak antara rumah dan lokasi absensi</strong>. Pegawai di manapun berada dapat melakukan presensi secara langsung. Sistem secara otomatis merekam titik koordinat GPS asli perangkat (Latitude &amp; Longitude), akurasi sensor, serta mendeteksi alamat fisik/wilayah terdekat.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1 text-[11px] font-bold text-slate-700">
-                <div className="bg-white/80 p-2.5 rounded-lg border border-indigo-100 flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] shrink-0">1</span>
-                  <span>Perluas radius jangkauan WFH (100m - 1000m)</span>
+                <div className="bg-white/80 p-2.5 rounded-lg border border-emerald-100 flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] shrink-0">✓</span>
+                  <span>Absensi fleksibel di mana saja</span>
                 </div>
-                <div className="bg-white/80 p-2.5 rounded-lg border border-indigo-100 flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] shrink-0">2</span>
-                  <span>Longgarkan toleransi GPS (150m - 500m)</span>
+                <div className="bg-white/80 p-2.5 rounded-lg border border-emerald-100 flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] shrink-0">✓</span>
+                  <span>Koordinat &amp; alamat terdekat otomatis</span>
                 </div>
-                <div className="bg-white/80 p-2.5 rounded-lg border border-indigo-100 flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] shrink-0">3</span>
-                  <span>Kunci titik koordinat rumah pegawai</span>
+                <div className="bg-white/80 p-2.5 rounded-lg border border-emerald-100 flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] shrink-0">✓</span>
+                  <span>Tanpa risiko pegawai terblokir</span>
                 </div>
               </div>
             </div>

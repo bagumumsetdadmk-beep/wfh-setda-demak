@@ -57,25 +57,47 @@ export function useGeolocation(options: UseGeolocationOptions = {}): UseGeolocat
   const watchIdRef = useRef<number | null>(null);
   const isMountedRef = useRef<boolean>(true);
 
-  // Helper for reverse geocoding
+  // Helper for reverse geocoding with smart nearest-address fallback
   const fetchAddress = useCallback(async (lat: number, lng: number) => {
     if (!reverseGeocode) return;
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=id,en`,
+        { signal: controller.signal }
       );
+      clearTimeout(timeoutId);
+
       if (!res.ok) throw new Error('Failed to fetch address');
       const data = await res.json();
       if (isMountedRef.current) {
+        if (data && data.address) {
+          const addr = data.address;
+          // Build clean structured Indonesian address
+          const road = addr.road || addr.street || addr.pedestrian || addr.residential || addr.path || addr.footway || '';
+          const village = addr.village || addr.suburb || addr.neighbourhood || addr.hamlet || addr.quarter || addr.village_hall || '';
+          const subdistrict = addr.city_district || addr.subdistrict || addr.district || addr.municipality || '';
+          const regency = addr.county || addr.city || addr.regency || addr.town || '';
+          const state = addr.state || '';
+
+          const parts = [road, village, subdistrict, regency, state].filter(Boolean);
+          if (parts.length > 0) {
+            setAddress(parts.join(', '));
+            return;
+          }
+        }
+        
         if (data && data.display_name) {
           setAddress(data.display_name);
         } else {
-          setAddress(`Koordinat: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+          setAddress(`Titik Koordinat: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
         }
       }
     } catch {
       if (isMountedRef.current) {
-        setAddress(`Koordinat: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+        setAddress(`Titik Koordinat: ${lat.toFixed(6)}, ${lng.toFixed(6)} (Lokasi Terdeteksi)`);
       }
     }
   }, [reverseGeocode]);
@@ -214,7 +236,8 @@ export function useGeolocation(options: UseGeolocationOptions = {}): UseGeolocat
     setError(null);
   }, []);
 
-  const isAccuracyValid = accuracy !== null && (accuracy <= accuracyThreshold || isFlexible);
+  // GPS coordinates are the primary ground truth; accuracy level provides transparency without blocking
+  const isAccuracyValid = location !== null;
 
   return {
     location,

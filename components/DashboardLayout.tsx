@@ -31,7 +31,6 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Pegawai', href: '/dashboard/pegawai', icon: Users },
-  { label: 'Radius Lokasi', href: '/dashboard/radius', icon: MapPin },
   { label: 'Jadwal WFH', href: '/dashboard/jadwal', icon: Calendar },
   { label: 'Absensi', href: '/dashboard/absensi', icon: ClipboardCheck },
   { label: 'Laporan Kerja', href: '/dashboard/laporan', icon: FileText },
@@ -211,7 +210,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const allowedNavItems = navItems.filter(item => {
     // While profile is loading, hide administrative and sensitive items
     if (!userProfile) {
-      const sensitiveItems = ['Pegawai', 'Radius Lokasi', 'Persetujuan', 'Laporan BKPSDM', 'Laporan WFH'];
+      const sensitiveItems = ['Pegawai', 'Persetujuan', 'Laporan BKPSDM', 'Laporan WFH'];
       return !sensitiveItems.includes(item.label);
     }
 
@@ -223,9 +222,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       return !restrictedForAdmin.includes(item.label);
     }
 
-    // Radius Lokasi is EXCLUSIVELY for ADMIN - Pegawai and Atasan must never see it
-    if (item.label === 'Radius Lokasi') return false;
-
     // Atasan/Pegawai should not see Laporan BKPSDM and Laporan WFH
     if (item.label === 'Laporan BKPSDM' || item.label === 'Laporan WFH') return false;
 
@@ -236,9 +232,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
 
     // Pegawai sees Dashboard, Jadwal WFH, Absensi, Laporan Kerja
-    // Specifically restricted for Pegawai: Pegawai, Persetujuan, Radius Lokasi, Laporan BKPSDM, Laporan WFH
+    // Specifically restricted for Pegawai: Pegawai, Persetujuan, Laporan BKPSDM, Laporan WFH
     if (role === 'PEGAWAI') {
-      const restrictedForPegawai = ['Pegawai', 'Persetujuan', 'Radius Lokasi', 'Laporan BKPSDM', 'Laporan WFH'];
+      const restrictedForPegawai = ['Pegawai', 'Persetujuan', 'Laporan BKPSDM', 'Laporan WFH'];
       return !restrictedForPegawai.includes(item.label);
     }
 

@@ -91,17 +91,8 @@ export default function AbsenPage() {
         <div className="border-b border-slate-200 pb-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-black text-slate-800 tracking-tight">Presensi WFH Geotagging</h1>
-            <p className="text-sm text-slate-500 font-medium">Radius WFH: {effectiveRadius}m • Batas Akurasi GPS: ±{accuracyThreshold}m</p>
+            <p className="text-sm text-slate-500 font-medium">Perekaman Titik Koordinat GPS &amp; Alamat Lokasi Terdekat</p>
           </div>
-          {isAdmin && (
-            <Link
-              href="/dashboard/radius"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all border border-indigo-200"
-            >
-              <Sliders size={14} />
-              <span>Atur Radius</span>
-            </Link>
-          )}
         </div>
 
         {submitted ? (
